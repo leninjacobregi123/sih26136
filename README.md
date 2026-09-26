@@ -1,7 +1,10 @@
 # Pilot register — Day 1 backend
 
 A small Vercel app: `index.html` (the composer) + `api/*.js` (plain Node functions).
-No framework, no build step. Separate from `docs/`, which stays on GitHub Pages.
+No framework, no build step. This repo is the app; `govstart-bridge` is only the static pitch walkthrough.
+
+**Preview (static, no saving):** https://leninjacobregi.me/sih26136/
+**Full app (form saves, APIs live):** after the Vercel deploy below.
 
 ```
 shared/record_schema.csv    item 1 — header + one example row
@@ -21,7 +24,7 @@ index.html                  item 4 — the composer; submit disabled until the t
    `text-embedding-3-small` returns 1536 dims, matching `records.embedding`.
 2. **Database.** Create a Postgres with pgvector: Neon (Vercel Marketplace) or Supabase.
    Copy the connection string.
-3. `cp .env.example .env.local`, fill in all three, then:
+3. `cp .env.example .env.local   # run inside this repo`, fill in all three, then:
    ```
    npm install
    npm run smoke      # item 2 locally: PASS llm / PASS embeddings / PASS db

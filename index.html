@@ -10,11 +10,13 @@
   input, textarea { width: 100%; box-sizing: border-box; font: inherit; padding: .4rem; }
   fieldset { margin-top: 1rem; }
   #gate-why { color: #777; margin: .5rem 0; }
+  #preview { background: #fff4d6; padding: .5rem .75rem; }
   #status { margin-top: .75rem; }
   button { font: inherit; padding: .5rem 1rem; margin-top: 1rem; }
 </style>
 </head>
 <body>
+<p id="preview" hidden><b>Work-in-progress preview.</b> The form and its baseline gate are real; saving is not connected on this host yet.</p>
 <h1>Compose a challenge</h1>
 
 <form id="composer">
@@ -50,6 +52,10 @@
   const status = document.getElementById("status");
   const gate = [...form.querySelectorAll("[data-gate]")];
 
+  // GitHub Pages serves this file with no /api behind it.
+  const STATIC_HOST = /(^|\.)leninjacobregi\.me$|\.github\.io$/.test(location.hostname);
+  document.getElementById("preview").hidden = !STATIC_HOST;
+
   function checkGate() {
     const open = gate.every((el) => el.value.trim() !== "");
     submit.disabled = !open;
@@ -63,11 +69,15 @@
     submit.disabled = true;
     status.textContent = "Saving…";
     try {
+      if (STATIC_HOST) throw new Error("this is the preview; saving goes live with the backend deploy.");
       const res = await fetch("/api/challenges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(Object.fromEntries(new FormData(form))),
       });
+      if (!res.headers.get("content-type")?.includes("application/json")) {
+        throw new Error("the backend isn't reachable from this address.");
+      }
       const out = await res.json();
       if (!res.ok) throw new Error(out.missing ? "Missing: " + out.missing.join(", ") : out.error);
       status.textContent = "Saved. Challenge id " + out.id;
