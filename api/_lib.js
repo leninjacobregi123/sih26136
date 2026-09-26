@@ -27,6 +27,7 @@ export function db() {
   if (!pool) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL is not set");
+    if (/@host\//.test(url)) throw new Error("DATABASE_URL is still the template placeholder; paste the Neon connection string");
     const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
     pool = new pg.Pool({ connectionString: url, ssl: local ? false : { rejectUnauthorized: false }, max: 3 });
   }
