@@ -11,7 +11,7 @@ shared/record_schema.csv    item 1 — header + one example row
 shared/defect_taxonomy.json M3's 7 defect classes for the A1 critique (tomorrow). Advisory only, never blocks.
 shared/POST_TO_GROUP.md     item 1 — the message to paste with the link
 scripts/check_records.py    item 1 — checks M5's 40 rows against every rule
-api/health.js               item 2 — GET /api/health?apis=1 calls Grok + embeddings from the deployed host
+api/health.js               item 2 — GET /api/health?apis=1 calls the LLM + embeddings from the deployed host
 db/schema.sql               item 3 — pgvector + the four tables (safe to re-run)
 api/challenges.js           item 4 — POST refuses without baseline value/source/method
 index.html                  item 4 — the composer; submit disabled until the three are filled
@@ -19,8 +19,8 @@ index.html                  item 4 — the composer; submit disabled until the t
 
 ## What only you can do (needs your accounts)
 
-1. **Keys.** Create an xAI key for Grok (console.x.ai) and an OpenAI key
-   (platform.openai.com), and check both have credit. xAI has no embeddings API; OpenAI
+1. **Keys.** Create a Groq key (console.groq.com) or an xAI key (console.x.ai); either goes in `LLM_API_KEY`, and an OpenAI key
+   (platform.openai.com), and check both have credit. neither has an embeddings API; OpenAI
    `text-embedding-3-small` returns 1536 dims, matching `records.embedding`.
 2. **Database.** Create a Postgres with pgvector: Neon (Vercel Marketplace) or Supabase.
    Copy the connection string.
@@ -33,7 +33,7 @@ index.html                  item 4 — the composer; submit disabled until the t
 4. **Deploy.** Your Vercel CLI token has expired, so run `vercel login` first. Then from this folder:
    ```
    vercel link
-   vercel env add XAI_API_KEY production
+   vercel env add LLM_API_KEY production
    vercel env add OPENAI_API_KEY production
    vercel env add DATABASE_URL production
    vercel --prod

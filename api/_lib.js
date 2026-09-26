@@ -2,8 +2,20 @@
 import pg from "pg";
 import OpenAI from "openai";
 
-// Grok via xAI's OpenAI-compatible API; override the model without a code change.
-export const LLM_MODEL = process.env.LLM_MODEL || "grok-4.7";
+// Either Groq or xAI (Grok); both speak the OpenAI API. Picked from the key's
+// prefix so switching provider is a key swap, not a code change.
+const PROVIDERS = {
+  gsk_: { name: "groq", baseURL: "https://api.groq.com/openai/v1", model: "openai/gpt-oss-120b" },
+  "xai-": { name: "xai", baseURL: "https://api.x.ai/v1", model: "grok-4.7" },
+};
+function provider() {
+  const key = process.env.LLM_API_KEY?.trim();
+  if (!key) throw new Error("LLM_API_KEY is not set");
+  const p = Object.entries(PROVIDERS).find(([prefix]) => key.startsWith(prefix))?.[1];
+  if (!p) throw new Error("LLM_API_KEY is neither a Groq (gsk_) nor an xAI (xai-) key");
+  return { ...p, key, model: process.env.LLM_MODEL || p.model };
+}
+
 export const EMBED_MODEL = "text-embedding-3-small"; // 1536 dims, matches records.embedding
 
 let pool;
@@ -37,24 +49,26 @@ export async function checkDb() {
   return found;
 }
 
-let grok;
+let client;
 export function llm() {
-  if (!grok) {
-    if (!process.env.XAI_API_KEY) throw new Error("XAI_API_KEY is not set");
-    grok = new OpenAI({ apiKey: process.env.XAI_API_KEY, baseURL: "https://api.x.ai/v1" });
+  if (!client) {
+    const p = provider();
+    client = new OpenAI({ apiKey: p.key, baseURL: p.baseURL });
+    client.model = p.model;
+    client.providerName = p.name;
   }
-  return grok;
+  return client;
 }
 
 export async function checkLlm() {
   const response = await llm().chat.completions.create({
-    model: LLM_MODEL,
+    model: llm().model,
     max_tokens: 256,
     messages: [{ role: "user", content: "Reply with exactly: register ok" }],
   });
   const text = response.choices[0]?.message?.content?.trim();
   if (!text) throw new Error("LLM answered with no text");
-  return { model: response.model, text };
+  return { provider: llm().providerName, model: response.model, text };
 }
 
 export async function checkEmbeddings() {
