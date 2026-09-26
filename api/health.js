@@ -1,9 +1,10 @@
 // GET /api/health          -> database only (free)
-// GET /api/health?apis=1   -> database + one real LLM call + one real embedding call
+// GET /api/health?apis=1   -> database + one real LLM call
+// (embeddings are made on the laptop, not here; `npm run smoke` checks those)
 import { runChecks } from "./_lib.js";
 
 export default async function handler(req, res) {
-  const names = req.query.apis ? ["db", "llm", "embeddings"] : ["db"];
+  const names = req.query.apis ? ["db", "llm"] : ["db"];
   const result = await runChecks(names);
   const ok = Object.values(result).every((r) => r.ok);
   res.status(ok ? 200 : 500).json({ ok, ...result });

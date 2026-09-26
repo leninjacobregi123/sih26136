@@ -36,7 +36,7 @@ create table if not exists records (
   pilot_cost_inr numeric,
   result_direction text,
   is_synthetic  boolean default false,
-  embedding     vector(1536),
+  embedding     vector(1024),   -- mxbai-embed-large, via Ollama
   created_at    timestamptz default now()
 );
 

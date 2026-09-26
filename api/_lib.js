@@ -16,7 +16,11 @@ function provider() {
   return { ...p, key, model: process.env.LLM_MODEL || p.model };
 }
 
-export const EMBED_MODEL = "text-embedding-3-small"; // 1536 dims, matches records.embedding
+// Embeddings run on this laptop's Ollama, never on Vercel: records are embedded
+// once by scripts/seed-records.mjs and the live site only compares stored vectors.
+export const EMBED_MODEL = "mxbai-embed-large";
+export const EMBED_DIMS = 1024; // must match records.embedding in db/schema.sql
+const OLLAMA = process.env.OLLAMA_URL || "http://localhost:11434";
 
 let pool;
 export function db() {
@@ -71,11 +75,27 @@ export async function checkLlm() {
   return { provider: llm().providerName, model: response.model, text };
 }
 
+export async function embed(texts) {
+  let res;
+  try {
+    res = await fetch(`${OLLAMA}/api/embed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: EMBED_MODEL, input: texts }),
+    });
+  } catch {
+    throw new Error(`Ollama is not reachable at ${OLLAMA}; start it with: ollama serve`);
+  }
+  if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
+  const { embeddings } = await res.json();
+  if (embeddings[0]?.length !== EMBED_DIMS) {
+    throw new Error(`expected ${EMBED_DIMS}-dim vectors from ${EMBED_MODEL}, got ${embeddings[0]?.length}`);
+  }
+  return embeddings;
+}
+
 export async function checkEmbeddings() {
-  const client = new OpenAI();
-  const out = await client.embeddings.create({ model: EMBED_MODEL, input: "complaint-to-collection time" });
-  const vec = out.data[0]?.embedding ?? [];
-  if (vec.length !== 1536) throw new Error(`expected a 1536-dim vector, got ${vec.length}`);
+  const [vec] = await embed(["complaint-to-collection time"]);
   return { model: EMBED_MODEL, dims: vec.length };
 }
 
