@@ -1,4 +1,4 @@
-Record schema is up: <LINK TO record_schema.csv>
+Record schema is up: https://github.com/leninjacobregi123/sih26136/blob/main/shared/record_schema.csv
 
 Row 1 is the header. Row 2 is a filled example. @M5, copy that pattern 40 times. @M2, these are your columns.
 
@@ -11,6 +11,6 @@ Rules (not suggestions):
 6. Keep the header exactly as-is: same column names, same order.
 
 Before you send the file, run this. It checks every rule above:
-  python3 register/scripts/check_records.py your_file.csv
+  python3 scripts/check_records.py your_file.csv   (from the sih26136 repo)
 
 Please reply 👍 once you've seen this.
