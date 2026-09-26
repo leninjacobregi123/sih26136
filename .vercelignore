@@ -1,0 +1,7 @@
+# Only index.html and api/ go to Vercel. Never upload keys.
+.env*
+!.env.example
+node_modules
+scripts
+db
+*.md
