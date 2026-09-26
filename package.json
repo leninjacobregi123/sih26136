@@ -8,7 +8,8 @@
   "scripts": {
     "smoke": "node scripts/smoke.mjs",
     "db:init": "node scripts/db-init.mjs",
-    "seed": "node scripts/seed-records.mjs"
+    "seed": "node scripts/seed-records.mjs",
+    "supabase:setup": "node scripts/supabase-setup.mjs"
   },
   "dependencies": {
     "openai": "^7.23.0",

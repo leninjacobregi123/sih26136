@@ -23,8 +23,11 @@ index.html                  item 4 — the composer; submit disabled until the t
 
 1. **Key.** A Groq key (console.groq.com) or an xAI key (console.x.ai) goes in `LLM_API_KEY`;
    the provider is detected from the prefix. No embeddings key: embeddings run locally (below).
-2. **Database.** Create a Postgres with pgvector: Neon (Vercel Marketplace) or Supabase.
-   Copy the connection string.
+2. **Database (Supabase, automatic).** Create an access token at
+   supabase.com/dashboard/account/tokens, add `SUPABASE_ACCESS_TOKEN=<token>` to `.env.local`,
+   then `npm run supabase:setup`. It creates the project in Mumbai, writes `DATABASE_URL`
+   (transaction pooler, port 6543, which Vercel needs) and creates the tables.
+   Free projects pause after 7 days idle: open the site before judging day.
 3. `cp .env.example .env.local   # run inside this repo`, fill in all three, then:
    ```
    npm install
