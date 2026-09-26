@@ -1,0 +1,2 @@
+record_id,department,sector,district,outcome_statement,kpi_name,kpi_unit,baseline_value,baseline_window,baseline_source,comparison_unit,duration_days,post_value,adoption_pct,pilot_cost_inr,verifier_role,dissent_note,is_synthetic,result_direction
+PR-2026-0001,Pune Municipal Corporation,Solid waste,Pune,Cut the time between a waste complaint and collection,Complaint-to-collection time,hours,41.6,Apr-Jun 2026,PMC grievance system export,Ward 12 (no deployment),90,28.3,64,1450000,Deputy Commissioner,None recorded,TRUE,IMPROVED

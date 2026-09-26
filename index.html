@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compose a challenge</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 0 auto; padding: 1rem; }
+  label { display: block; margin-top: .75rem; font-weight: 600; }
+  input, textarea { width: 100%; box-sizing: border-box; font: inherit; padding: .4rem; }
+  fieldset { margin-top: 1rem; }
+  #gate-why { color: #777; margin: .5rem 0; }
+  #status { margin-top: .75rem; }
+  button { font: inherit; padding: .5rem 1rem; margin-top: 1rem; }
+</style>
+</head>
+<body>
+<h1>Compose a challenge</h1>
+
+<form id="composer">
+  <label>Department * <input name="department" required></label>
+  <label>Sector <input name="sector"></label>
+  <label>District <input name="district"></label>
+  <label>Outcome statement * <textarea name="outcome_statement" rows="2" required></textarea></label>
+  <label>KPI name * <input name="kpi_name" required></label>
+  <label>KPI unit <input name="kpi_unit" placeholder="hours, %, cases per week"></label>
+  <label>KPI definition <textarea name="kpi_definition" rows="2"></textarea></label>
+
+  <fieldset>
+    <legend>Baseline: required before this challenge can exist</legend>
+    <label>Baseline value * <input name="baseline_value" inputmode="decimal" data-gate></label>
+    <label>Baseline window <input name="baseline_window" placeholder="Apr-Jun 2026"></label>
+    <label>Baseline source * <input name="baseline_source" placeholder="PMC grievance system export" data-gate></label>
+    <label>Baseline method * <textarea name="baseline_method" rows="2" placeholder="How the number was measured" data-gate></textarea></label>
+  </fieldset>
+
+  <label>Comparison unit <input name="comparison_unit" placeholder="Ward 12 (no deployment)"></label>
+  <label>Duration (days) <input name="duration_days" inputmode="numeric"></label>
+
+  <!-- TODO: replace this sentence with M5's copy JSON when it lands (tomorrow 11:00). -->
+  <p id="gate-why">You can't submit yet. Without a baseline value, where it came from and how it was measured, there is nothing to compare the pilot against.</p>
+  <button type="submit" id="submit" disabled>Submit challenge</button>
+  <p id="status" role="status"></p>
+</form>
+
+<script>
+  const form = document.getElementById("composer");
+  const submit = document.getElementById("submit");
+  const why = document.getElementById("gate-why");
+  const status = document.getElementById("status");
+  const gate = [...form.querySelectorAll("[data-gate]")];
+
+  function checkGate() {
+    const open = gate.every((el) => el.value.trim() !== "");
+    submit.disabled = !open;
+    why.hidden = open;
+  }
+  form.addEventListener("input", checkGate);
+  checkGate();
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    submit.disabled = true;
+    status.textContent = "Saving…";
+    try {
+      const res = await fetch("/api/challenges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.fromEntries(new FormData(form))),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.missing ? "Missing: " + out.missing.join(", ") : out.error);
+      status.textContent = "Saved. Challenge id " + out.id;
+      form.reset();
+    } catch (err) {
+      status.textContent = "Not saved: " + err.message;
+    }
+    checkGate();
+  });
+</script>
+</body>
+</html>

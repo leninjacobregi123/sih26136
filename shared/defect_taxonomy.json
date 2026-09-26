@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "author": "M3",
+  "date": "2026-09-26",
+  "usage": "Inject `classes` into the A1 system prompt. Model returns an array of {code, span, why} — advisory only, never blocks publishing.",
+  "classes": [
+    {
+      "code": "NO_BASELINE",
+      "label": "No baseline",
+      "description": "The notice describes a problem but does not state the current measured situation.",
+      "example_bad": "People are facing long waiting times.",
+      "example_good": "People currently wait an average of 60 minutes for the service."
+    },
+    {
+      "code": "KPI_NOT_MEASURABLE",
+      "label": "KPI not measurable",
+      "description": "Uses general words like improve or increase without explaining how the improvement will be measured.",
+      "example_bad": "Improve the quality of public services.",
+      "example_good": "Reduce the average complaint resolution time from 10 days to 5 days."
+    },
+    {
+      "code": "SOLUTION_PRESUPPOSED",
+      "label": "Solution presupposed",
+      "description": "Names a solution instead of describing the problem, which rules out approaches the market might offer.",
+      "example_bad": "Develop a mobile app to reduce citizen complaints.",
+      "example_good": "Reduce the number of unresolved citizen complaints by 30%."
+    },
+    {
+      "code": "SPEC_TAILORED",
+      "label": "Specification tailored to one supplier",
+      "description": "Requirements are written in a way that favours a particular company, product or technology.",
+      "example_bad": "The solution must use ABC Company's platform.",
+      "example_good": "The solution should handle 10,000 cases per month, regardless of the technology used."
+    },
+    {
+      "code": "OUTCOME_NOT_ATTRIBUTABLE",
+      "label": "Outcome not attributable",
+      "description": "Even if the situation improves, nothing establishes that the solution caused it rather than seasonality or another change.",
+      "example_bad": "Reduce waiting time during the festival season.",
+      "example_good": "Reduce waiting time against the same period last year, measured at a comparison site that does not receive the solution."
+    },
+    {
+      "code": "NO_SUCCESS_THRESHOLD",
+      "label": "No success threshold",
+      "description": "Does not state what result would count as success, so the pilot cannot fail.",
+      "example_bad": "The solution should improve service efficiency.",
+      "example_good": "The pilot succeeds if processing time falls by at least 25%."
+    },
+    {
+      "code": "TIMELINE_INFEASIBLE",
+      "label": "Timeline not feasible",
+      "description": "The time allowed is unrealistic for the work described, or no timeline is given at all.",
+      "example_bad": "Develop and fully implement the system within 3 days.",
+      "example_good": "Develop the pilot within 8 weeks, followed by 4 weeks of testing and evaluation."
+    }
+  ]
+}
