@@ -1,9 +1,9 @@
 // Shared by every function. Files starting with "_" are not routed by Vercel.
 import pg from "pg";
-import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 
-export const LLM_MODEL = "claude-opus-5";
+// Grok via xAI's OpenAI-compatible API; override the model without a code change.
+export const LLM_MODEL = process.env.LLM_MODEL || "grok-4.7";
 export const EMBED_MODEL = "text-embedding-3-small"; // 1536 dims, matches records.embedding
 
 let pool;
@@ -37,16 +37,22 @@ export async function checkDb() {
   return found;
 }
 
+let grok;
+export function llm() {
+  if (!grok) {
+    if (!process.env.XAI_API_KEY) throw new Error("XAI_API_KEY is not set");
+    grok = new OpenAI({ apiKey: process.env.XAI_API_KEY, baseURL: "https://api.x.ai/v1" });
+  }
+  return grok;
+}
+
 export async function checkLlm() {
-  const client = new Anthropic();
-  const response = await client.messages.create({
+  const response = await llm().chat.completions.create({
     model: LLM_MODEL,
     max_tokens: 256,
-    output_config: { effort: "low" },
     messages: [{ role: "user", content: "Reply with exactly: register ok" }],
   });
-  if (response.stop_reason === "refusal") throw new Error("model refused the smoke-test prompt");
-  const text = response.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+  const text = response.choices[0]?.message?.content?.trim();
   if (!text) throw new Error("LLM answered with no text");
   return { model: response.model, text };
 }
@@ -67,7 +73,7 @@ export async function runChecks(names) {
     try {
       result[name] = { ok: true, ...wrap(await checks[name]()) };
     } catch (err) {
-      result[name] = { ok: false, error: `${err.status ? err.status + " " : ""}${err.message}` };
+      result[name] = { ok: false, error: err.message };
     }
   }
   return result;
