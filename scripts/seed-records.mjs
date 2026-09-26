@@ -1,4 +1,4 @@
-// Load M5's synthetic records into the database, embedding each one with the
+// Load Jones's (M5) synthetic records into the database, embedding each one with the
 // local Ollama model. Run on the laptop; safe to re-run (existing ids are skipped).
 //   python3 scripts/check_records.py records.csv   # check the rules first
 //   npm run seed -- records.csv

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check M5's synthetic records against the rules posted with record_schema.csv.
+"""Check Jones's (M5) synthetic records against the rules posted with record_schema.csv.
 
     python3 scripts/check_records.py path/to/records.csv
 

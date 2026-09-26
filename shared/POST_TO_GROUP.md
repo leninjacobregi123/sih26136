@@ -1,9 +1,9 @@
 Record schema is up: https://github.com/leninjacobregi123/sih26136/blob/main/shared/record_schema.csv
 
-Row 1 is the header. Row 2 is a filled example. @M5, copy that pattern 40 times. @M2, these are your columns.
+Row 1 is the header. Row 2 is a filled example. @Jones, copy that pattern 40 times. @Glencia, these are your columns.
 
 Rules (not suggestions):
-1. is_synthetic = TRUE on all 40 of M5's records. No exceptions.
+1. is_synthetic = TRUE on all 40 of Jones's records. No exceptions.
 2. result_direction is exactly one of IMPROVED / NO_CHANGE / WORSE.
 3. At least 8 of the 40 must be NO_CHANGE or WORSE. A register that shows only successes is a brochure, and a judge will see that in ten seconds. The negative results are the point.
 4. baseline_window is a real date range ("Apr-Jun 2026"). Never "before the pilot".

@@ -8,16 +8,27 @@ No framework, no build step. This repo is the app; `govstart-bridge` is only the
 
 ```
 shared/record_schema.csv    item 1 — header + one example row
-shared/defect_taxonomy.json M3's 7 defect classes for the A1 critique (tomorrow). Advisory only, never blocks.
+shared/defect_taxonomy.json Pranjal's (M3) 7 defect classes for the A1 critique (tomorrow). Advisory only, never blocks.
 shared/POST_TO_GROUP.md     item 1 — the message to paste with the link
-scripts/check_records.py    item 1 — checks M5's 40 rows against every rule
+scripts/check_records.py    item 1 — checks Jones's (M5) 40 rows against every rule
 api/health.js               item 2 — GET /api/health?apis=1 calls the LLM from the deployed host
 api/similar.js              GET /api/similar?id=PR-2026-0001 — the 5 nearest stored records
-scripts/seed-records.mjs    loads M5's CSV and embeds each record with local Ollama
+scripts/seed-records.mjs    loads Jones's (M5) CSV and embeds each record with local Ollama
 db/schema.sql               item 3 — pgvector + the four tables (safe to re-run)
 api/challenges.js           item 4 — POST refuses without baseline value/source/method
 index.html                  item 4 — the composer; submit disabled until the three are filled
 ```
+
+## Team
+
+| | | |
+|---|---|---|
+| M1 | Lenin | this app: backend, deploy |
+| M2 | Glencia | record columns |
+| M3 | Pranjal | defect taxonomy |
+| M4 | Angel | |
+| M5 | Jones | 40 synthetic records, UI copy |
+| M6 | Anushka | slide deck |
 
 ## What only you can do (needs your accounts)
 
@@ -49,7 +60,7 @@ index.html                  item 4 — the composer; submit disabled until the t
 Records are embedded on the laptop by Ollama's `mxbai-embed-large` (1024 dims,
 matching `records.embedding`) and stored in the database. The live site only compares
 stored vectors (`/api/similar`), so Vercel never needs an embedding service. When
-M5's file lands:
+Jones's (M5) file lands:
 
 ```
 python3 scripts/check_records.py records.csv
