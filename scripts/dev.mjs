@@ -42,6 +42,11 @@ createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   for (const rule of config.headers ?? []) if (match(rule, url)) for (const h of rule.headers) res.setHeader(h.key, h.value);
   try {
+    // Vercel applies clean URLs first: /x.html -> /x, before any redirect rule sees it.
+    if (config.cleanUrls && url.pathname.endsWith(".html")) {
+      const clean = url.pathname === "/index.html" ? "/" : url.pathname.slice(0, -5);
+      return send(res, 308, "text/plain", "", { Location: `${clean}${url.search}` });
+    }
     for (const rule of config.redirects ?? []) {
       const g = match(rule, url);
       if (g) return send(res, rule.permanent ? 308 : 307, "text/plain", "", { Location: fill(rule.destination, g) });
@@ -61,16 +66,18 @@ createServer(async (req, res) => {
       return await handler(req, res);
     }
 
-    // Clean URLs: /x serves x.html, /x.html redirects to /x.
-    let rel = decodeURIComponent(url.pathname).slice(1);
-    if (config.cleanUrls && rel.endsWith(".html")) {
-      return send(res, 308, "text/plain", "", { Location: `/${rel === "index.html" ? "" : rel.slice(0, -5)}${url.search}` });
-    }
-    if (rel === "") rel = "index.html";
-    else if (config.cleanUrls && !rel.includes(".") && isFile(`${rel}.html`)) rel = `${rel}.html`;
-    if (!isFile(rel) || !safe(rel)) {
+    // Clean URLs: /x serves x.html. Rewrites only apply when no file matches, and their
+    // destinations are clean paths resolved the same way.
+    const resolve = (path) => {
+      const r = decodeURIComponent(path).slice(1);
+      if (r === "") return "index.html";
+      if (config.cleanUrls && !r.includes(".") && isFile(`${r}.html`)) return `${r}.html`;
+      return config.cleanUrls && r.endsWith(".html") ? null : r;
+    };
+    let rel = resolve(url.pathname);
+    if (!rel || !isFile(rel) || !safe(rel)) {
       const rw = (config.rewrites ?? []).find((r) => match(r, url));
-      rel = rw ? fill(rw.destination, match(rw, url)).slice(1) : null;
+      rel = rw ? resolve(fill(rw.destination, match(rw, url))) : null;
     }
     if (!rel || !isFile(rel) || !safe(rel)) {
       return send(res, 404, TYPES.html, existsSync(new URL("404.html", root)) ? readFileSync(new URL("404.html", root)) : "not found");

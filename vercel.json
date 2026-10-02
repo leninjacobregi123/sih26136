@@ -9,20 +9,20 @@
   "rewrites": [
     {
       "source": "/pilots/new",
-      "destination": "/new-challenge.html"
+      "destination": "/new-challenge"
     },
     {
       "source": "/pilots/:id",
-      "destination": "/pilot.html"
+      "destination": "/pilot"
     },
     {
       "source": "/programme/payments",
-      "destination": "/payments.html"
+      "destination": "/payments"
     }
   ],
   "redirects": [
     {
-      "source": "/passport.html",
+      "source": "/passport",
       "has": [
         {
           "type": "query",
@@ -34,18 +34,8 @@
       "permanent": false
     },
     {
-      "source": "/passport.html",
-      "destination": "/demo",
-      "permanent": false
-    },
-    {
       "source": "/passport",
       "destination": "/demo",
-      "permanent": false
-    },
-    {
-      "source": "/dashboard.html",
-      "destination": "/programme",
       "permanent": false
     },
     {
@@ -54,18 +44,8 @@
       "permanent": false
     },
     {
-      "source": "/ledger.html",
-      "destination": "/programme/payments",
-      "permanent": false
-    },
-    {
       "source": "/ledger",
       "destination": "/programme/payments",
-      "permanent": false
-    },
-    {
-      "source": "/login.html",
-      "destination": "/sign-in",
       "permanent": false
     },
     {
