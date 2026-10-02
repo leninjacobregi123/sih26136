@@ -217,8 +217,14 @@ function paint() {
   $("subtitle").textContent = DEMO ? `${c.pr_id} · ${data.title} · ${place}` : `${c.kpi_name} · ${place}`;
   document.title = `Pilot Evidence Passport · ${DEMO ? c.pr_id : c.kpi_name}`;
 
-  const at = data.states.indexOf(r.passport_state);
-  $("rail").innerHTML = data.states.map((s, i) =>
+  // A learning record ends the rail early: everything up to where it stopped, then the record.
+  let states = data.states, at = states.indexOf(r.passport_state);
+  if (r.passport_state === data.learning_state) {
+    const from = [...data.audit].reverse().find((e) => e.detail?.to === data.learning_state)?.detail.from;
+    states = [...states.slice(0, states.indexOf(from) + 1), data.learning_state];
+    at = states.length - 1;
+  }
+  $("rail").innerHTML = states.map((s, i) =>
     `<li class="${i < at ? "done" : i === at ? "now" : ""}"${i === at ? ' aria-current="step"' : ""}>${esc(s)}</li>`).join("");
 
   $("badges").innerHTML = [
@@ -276,6 +282,20 @@ function screening(sc) {
         ${table(["Check", "", "Why", "Would change if"], c.hard.map((h) => [esc(h.rule), h.pass ? `<span class="ok">✓</span>` : `<span class="${h.soft ? "warn" : "bad"}">${h.soft ? "!" : "✗"}</span>`, `<span class="why">${esc(h.why)}</span>`, `<span class="why">${esc(h.counterfactual ?? "")}</span>`]))}
         ${c.components.length ? table(["Component", "Points", "Why"], c.components.map((x) => [esc(x.name), `${x.points} / ${x.weight}`, `<span class="why">${esc(x.why)}</span>`])) : ""}
       </details>`; }).join("") : `<p class="muted">No startup accounts to screen.</p>`);
+}
+// Real pilots: deployment, then every adoption measurement against baseline, validation and target.
+function adoption(p, c) {
+  const d = p.deployment, ms = p.adoption.measurements, l = p.adoption.latest, o = l.outcome;
+  const tone4 = { adopted: "ok", "not adopted": "bad", "outcome not held": "warn" };
+  return dl([["Order", esc(d.order)], ["Route", esc(d.route)], ["Sites", esc(d.sites)], ["Go-live", date(d.go_live)],
+      ["Annual cost", inr(d.annual_cost_inr)], ["Staff to train", esc(d.staff_to_train)]])
+    + `<p style="margin:.7rem 0 .2rem"><b>Latest verdict: <span class="${tone4[l.verdict]}">${esc(l.verdict)}</span></b> <span class="why">— ${esc(l.why)}</span></p>`
+    + `<p class="why"><b>${esc(c.kpi_name)}</b> (${esc(c.kpi_unit)}): baseline ${esc(o.baseline)} → validated ${esc(o.validated ?? "—")} → now ${esc(o.now)} · target ${esc(o.target)}.
+       ${o.change_pct != null ? `Change from baseline: ${o.change > 0 ? "+" : ""}${esc(o.change_pct)}%.` : ""}</p>`
+    + table(["Measured", "Days live", "Trained", "Weekly active", "Would keep", c.kpi_name, "Verdict"], ms.map((m) => [date(m.measured_on), m.days_since_go_live,
+      m.staff_trained, `${m.weekly_active} (${m.usage_pct}%)`, m.survey ? `${m.survey.would_keep}/${m.survey.respondents} (${m.survey.would_keep_pct}%)` : "—",
+      `${esc(m.outcome.now)} ${m.outcome.held ? `<span class="ok">✓</span>` : `<span class="bad">✗</span>`}`, `<span class="${tone4[m.verdict]}">${esc(m.verdict)}</span>`]))
+    + dl([["Drop-off", esc(l.drop_off)], ["Citizen impact", esc(l.citizen_impact)], ["Operational cost", inr(l.operational_cost_inr)], ["Unresolved risks", esc(l.unresolved_risks)]]);
 }
 function panel(entries) {
   if (!entries.length) return "";
@@ -361,18 +381,23 @@ const SECTIONS = [
     + (p.procurement.counterfactual ? `<p><b>Counterfactual:</b> ${esc(p.procurement.counterfactual)}</p>` : "")
     + (p.procurement.accepted ? dl([["Approvals", p.procurement.approvals.map(esc).join("<br>")],
         ["Approved by", p.procurement.approved_by ? `${esc(p.procurement.approved_by)}${p.procurement.approved_at ? ` · ${when(p.procurement.approved_at)}` : ""}${p.procurement.approval_note ? ` — ${esc(p.procurement.approval_note)}` : ""}` : `<span class="muted">Awaiting route approval</span>`]]) : "")), true],
-  [12, "Deployment & adoption", "Deployed", (p) => p.deployment && dl([
-    ["Order", esc(p.deployment.order)], ["Sites", esc(p.deployment.sites)], ["Go-live", esc(p.deployment.go_live)],
-    ["Annual cost", inr(p.deployment.annual_cost_inr)],
+  [12, "Deployment & adoption", "Deployed", (p, c) => p.deployment && (p.adoption?.measurements ? adoption(p, c) : dl([
+    ["Order", esc(p.deployment.order)], ["Route", esc(p.deployment.route)], ["Sites", esc(p.deployment.sites)], ["Go-live", date(p.deployment.go_live)],
+    ["Annual cost", inr(p.deployment.annual_cost_inr)], ["Staff to train", esc(p.deployment.staff_to_train)],
     ...(p.adoption ? [["Measured on", esc(p.adoption.measured_on)], ["Staff trained", esc(p.adoption.staff_trained)],
       ["Weekly active", `${esc(p.adoption.weekly_active_staff)} (${esc(p.adoption.usage_rate_pct)}%)`], ["Drop-off", esc(p.adoption.drop_off)],
       ["Outcome held?", esc(p.adoption.outcome_persistence)], ["Citizen impact", esc(p.adoption.citizen_impact)],
       ["Unresolved risk", esc(p.adoption.unresolved_risks)]] : [["Adoption", `<span class="muted">Not measured yet</span>`]]),
-  ])],
+  ])), true],
   [13, "Replication", "Replication-ready", (p) => p.replication && dl([
-    ["Decision", `<b class="ok">${esc(p.replication.decision)}</b>`], ["Interested", p.replication.interested.map(esc).join("<br>")],
-    ["Reusable", esc(p.replication.reusable)], ["Remaining risks", esc(p.replication.remaining_risks)], ["Next review", esc(p.replication.next_review)],
-  ])],
+    ["Decision", `<b class="${p.replication.decision === "learning record" ? "warn" : p.replication.decision === "hold" ? "muted" : "ok"}">${esc(p.replication.decision)}</b>`],
+    ["Basis", esc(p.replication.basis)],
+    ["Reviewed by", p.replication.reviewed_by ? `${esc(p.replication.reviewed_by)} · ${date(p.replication.reviewed_on)}` : ""],
+    ["Interested", (p.replication.interested ?? []).map(esc).join("<br>")],
+    ["Reusable", Array.isArray(p.replication.reusable) ? p.replication.reusable.map(esc).join(", ") : esc(p.replication.reusable)],
+    ["Remaining risks", esc(p.replication.remaining_risks)], ["Next review", date(p.replication.next_review)], ["Note", esc(p.replication.note)],
+    ["Earlier reviews", (p.replication.history ?? []).slice(0, -1).map((h) => `${esc(h.decision)} · ${date(h.reviewed_on)}`).join("<br>")],
+  ]), true],
 ];
 
 // ---- real pilots: the forms for whatever this account can do next ----------------------
@@ -425,6 +450,42 @@ const FORMS = {
   approve_route: () => `<p class="why">Approving puts the route on the record against the evidence that justified it. Nothing is ordered automatically.</p>
     <label>Note <textarea name="note" rows="2"></textarea></label>
     <button class="primary">Approve the route</button>`,
+  record_deployment: () => `<p class="why">Record it once it is live. The route and the evidence that justified it are already on the passport.</p>
+    <label>Order reference * <input name="order_reference" required maxlength="200" placeholder="GeM order no."></label>
+    <label>Sites * <input name="sites" required placeholder="District hospital OPD, Nagpur"></label>
+    <label>Go-live * <input name="go_live" type="date" required max="${todayIso()}"></label>
+    <label>Annual cost (₹) * <input name="annual_cost_inr" inputmode="numeric" required></label>
+    <label>Staff to train * <input name="staff_to_train" inputmode="numeric" required></label>
+    <button class="primary">Record deployment</button>`,
+  record_adoption: () => `<p class="why">Measure more than once (say at 30, 60 and 90 days). A pilot that passed but isn't used becomes a learning record, not a success. Below ${esc(data.adoption_threshold_pct ?? 50)}% weekly use counts as not adopted.</p>
+    <label>Measured on * <input name="measured_on" type="date" required value="${todayIso()}" max="${todayIso()}"></label>
+    <div class="ms-row" style="grid-template-columns:1fr 1fr">
+      <label>Staff trained * <input name="staff_trained" inputmode="numeric" required></label>
+      <label>Weekly active staff * <input name="weekly_active" inputmode="numeric" required></label></div>
+    <label>${esc(data.challenge.kpi_name)} now (${esc(data.challenge.kpi_unit)}) * <span class="hint">same definition as the baseline</span>
+      <input name="kpi_value" inputmode="decimal" required></label>
+    <div class="ms-row" style="grid-template-columns:1fr 1fr">
+      <label>Staff surveyed <input name="survey_respondents" inputmode="numeric" value="0"></label>
+      <label>…who would keep using it <input name="survey_would_keep" inputmode="numeric" value="0"></label></div>
+    <label>Drop-off <input name="drop_off" placeholder="Who uses it least, and why"></label>
+    <label>Citizen impact <input name="citizen_impact" placeholder="≈ 37 minutes saved per OPD visit"></label>
+    <label>Operational cost (₹ / year) <input name="operational_cost_inr" inputmode="numeric"></label>
+    <label>Unresolved risks <input name="unresolved_risks"></label>
+    <button class="primary">Record measurement</button>`,
+  replication_review: (a) => { const ok = a.latest?.verdict === "adopted";
+    return `<p class="why">Latest measurement: <b>${esc(a.latest?.verdict)}</b> — ${esc(a.latest?.why)}</p>
+    <div class="choice" role="radiogroup" aria-label="Decision" style="margin-top:.4rem">
+      <label><input type="radio" name="decision" value="replicate" required${ok ? "" : " disabled"}> Recommend replication${ok ? "" : " (needs an adopted verdict)"}</label>
+      <label><input type="radio" name="decision" value="hold"> Hold for another measurement</label>
+      <label><input type="radio" name="decision" value="learning record"> Close as a learning record</label></div>
+    <label>Interested departments <span class="hint">one per line</span> <textarea name="interested" rows="2"></textarea></label>
+    <p style="margin:.6rem 0 0"><b>What another department can reuse</b></p>
+    <div class="choice">${["Baseline method", "Sealed KPIs", "Risk envelope", "Validator method", "Exit annexure", "Milestone plan"]
+      .map((x) => `<label><input type="checkbox" name="reusable" value="${x}"> ${x}</label>`).join("")}</div>
+    <label>Remaining risks <input name="remaining_risks"></label>
+    <label>Next review <span class="hint">required when holding</span> <input name="next_review" type="date" min="${todayIso()}"></label>
+    <label>Note <textarea name="note" rows="2"></textarea></label>
+    <button class="primary">Record review</button>`; },
   award: (a) => a.startups.length ? `<label>Startup <span class="hint">only startups that passed the hard filters</span> <select name="startup_user_id" required>${a.startups.map((u) => `<option value="${u.id}">${esc(u.name)} · match ${u.score}${u.panel != null ? ` · panel ${u.panel}` : ""}${u.terms === "standard terms" ? " · standard terms" : ""}</option>`).join("")}</select></label>
     <label>Scope * <input name="scope" required placeholder="One OPD, 90 days, staff-facing only"></label>
     <label>Data access * <input name="data_access" required placeholder="Pseudonymised timestamps only"></label>
@@ -501,6 +562,7 @@ async function submitAction(e) {
     body.milestones = [...f.querySelectorAll(".ms-row")].map((row) =>
       Object.fromEntries([...row.querySelectorAll("[data-k]")].map((i) => [i.dataset.k, i.value])));
   }
+  if (action === "replication_review") body.reusable = new FormData(f).getAll("reusable");
   if (action === "score") {
     body.scores = [...f.querySelectorAll(".score-row")].map((row) => ({ user_id: row.dataset.id,
       score: row.querySelector('[data-k="score"]').value, note: row.querySelector('[data-k="note"]').value }));

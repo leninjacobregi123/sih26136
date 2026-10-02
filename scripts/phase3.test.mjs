@@ -21,7 +21,7 @@ const { db } = await import("../api/_lib.js");
 const auth = await import("../api/_auth.js");
 const { createChallenge, checkChallenge, runAction, availableActions } = await import("../api/_actions.js");
 const { getBundle } = await import("../api/_passport.js");
-const { default: ledger } = await import("../api/ledger.js");
+const { default: ledger } = await import("../api/programme.js");
 
 const SOUND = {
   outcome_statement: "Cut median wait from OPD registration to first clinician contact", kpi_name: "Median wait",
@@ -279,7 +279,7 @@ test("a missed result compiles to a learning record, not a purchase", { skip }, 
   await runAction(u.validator, id, "attest", { achieved: "80", method: "m" });
   await runAction(u.finance, id, "compile_route", { same_department: "yes", scale_up: "yes" });
   const b = await getBundle(id);
-  assert.equal(b.record.passport_state, "Independently validated");
+  assert.equal(b.record.passport_state, "Learning record");
   assert.equal(b.passport.procurement.learning_record, true);
   assert.equal(b.audit.at(-1).action, "Compiled the procurement route: no lawful route (learning record)");
 });

@@ -6,10 +6,13 @@ import { db } from "./_lib.js";
 import { HttpError } from "./_http.js";
 import { ROLES } from "./_auth.js";
 import { slaStatus } from "./_procurement.js";
+import { policy } from "./_matching.js";
 
 const require = createRequire(import.meta.url);
 export const scenario = require("../shared/demo/opd-scenario.json");
 export const STATES = scenario.states;
+// The other way a passport ends: tested, recorded, not bought or not spread.
+export const LEARNING = "Learning record";
 
 export const sha256 = (s) => createHash("sha256").update(s).digest("hex");
 
@@ -133,6 +136,8 @@ export async function getBundle(recordId) {
   return {
     notice: rec.is_simulated ? scenario.notice : null,
     states: STATES,
+    learning_state: LEARNING,
+    adoption_threshold_pct: policy.adoption_threshold_pct,
     roles: Object.entries(ROLES).map(([id, label]) => ({ id, label })),
     challenge: pick(CHALLENGE_COLS),
     record: pick(RECORD_COLS),

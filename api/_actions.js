@@ -5,7 +5,7 @@ import { db } from "./_lib.js";
 import { HttpError } from "./_http.js";
 import { ROLES } from "./_auth.js";
 import { BASELINE_GATE, CHALLENGE_FIELDS } from "./_lib.js";
-import { STATES, sha256, sealHash, appendEvent, withTx, lockPassport, savePassport } from "./_passport.js";
+import { STATES, LEARNING, sha256, sealHash, appendEvent, withTx, lockPassport, savePassport } from "./_passport.js";
 import { qualityReport } from "./_quality.js";
 import { screenAll, policy } from "./_matching.js";
 import { compileRoute, addDays } from "./_procurement.js";
@@ -353,7 +353,7 @@ Object.assign(ACTIONS, {
       const p = passport.procurement;
       return p.accepted
         ? { action: `Compiled the procurement route: ${p.accepted.route}`, to: "Procurement-ready", detail: { route: p.accepted.route } }
-        : { action: "Compiled the procurement route: no lawful route (learning record)", detail: { learning_record: true } };
+        : { action: "Compiled the procurement route: no lawful route (learning record)", to: LEARNING, detail: { learning_record: true } };
     },
   },
 
@@ -366,6 +366,114 @@ Object.assign(ACTIONS, {
       passport.procurement.approved_at = new Date().toISOString();
       passport.procurement.approval_note = text(input.note, "note", { max: 1000, optional: true });
       return { action: `Approved the route: ${passport.procurement.accepted.route}` };
+    },
+  },
+});
+
+// ---- phase 4: after the purchase -----------------------------------------------
+
+// Where the KPI stands now against where it started, what was validated, and the target.
+export function outcomeNow(rec, kpiNow) {
+  const baseline = Number(rec.baseline_value), target = Number(rec.target_value);
+  const down = rec.target_direction === "decrease";
+  const change = kpiNow - baseline;
+  return {
+    baseline, target, now: kpiNow,
+    validated: rec.post_value != null ? Number(rec.post_value) : null,
+    change, change_pct: baseline ? Math.round((1000 * change) / baseline) / 10 : null,
+    held: down ? kpiNow <= target : kpiNow >= target,
+  };
+}
+
+export function adoptionVerdict(m, p = policy) {
+  if (m.usage_pct < p.adoption_threshold_pct) {
+    return { verdict: "not adopted", why: `${m.usage_pct}% of trained staff use it weekly, below the ${p.adoption_threshold_pct}% threshold.` };
+  }
+  if (!m.outcome.held) return { verdict: "outcome not held", why: `In use (${m.usage_pct}%), but the KPI is ${m.outcome.now} against a target of ${m.outcome.target}.` };
+  return { verdict: "adopted", why: `${m.usage_pct}% weekly use, and the KPI held at ${m.outcome.now} (target ${m.outcome.target}).` };
+}
+
+Object.assign(ACTIONS, {
+  record_deployment: {
+    role: "department", states: ["Procurement-ready"], label: "Record the deployment",
+    allowed: (rec) => !!rec.passport.procurement?.approved_by,
+    refuse: [409, "Approve the procurement route first."],
+    run({ passport }, input) {
+      const goLive = date(input.go_live, "go-live");
+      if (goLive > today()) throw bad("record the deployment once it has gone live");
+      passport.deployment = {
+        order: text(input.order_reference, "order reference", { max: 200 }),
+        route: passport.procurement.accepted.route,
+        sites: text(input.sites, "sites", { max: 500 }),
+        go_live: goLive,
+        annual_cost_inr: num(input.annual_cost_inr, "annual cost", { min: 0 }),
+        staff_to_train: num(input.staff_to_train, "staff to train", { min: 1 }),
+      };
+      return { action: `Recorded the deployment: live ${goLive}`, to: "Deployed" };
+    },
+  },
+
+  record_adoption: {
+    role: "department", states: ["Deployed", "Adoption measured"], label: "Record an adoption measurement",
+    async run({ client, rec, passport }, input) {
+      const measuredOn = date(input.measured_on, "measured on");
+      if (measuredOn > today()) throw bad("measured on can't be in the future");
+      if (measuredOn < passport.deployment.go_live) throw bad("measure after the go-live date");
+      const trained = num(input.staff_trained, "staff trained", { min: 0 });
+      const active = num(input.weekly_active, "weekly active staff", { min: 0 });
+      if (active > trained) throw bad("weekly active staff can't exceed staff trained");
+      const respondents = num(input.survey_respondents ?? 0, "survey respondents", { min: 0 });
+      const keep = respondents ? num(input.survey_would_keep, "would keep using", { min: 0 }) : 0;
+      if (keep > respondents) throw bad("more staff would keep it than answered the survey");
+      const kpiNow = num(input.kpi_value, `${rec.kpi_name} now`);
+      const m = {
+        measured_on: measuredOn,
+        days_since_go_live: Math.round((Date.parse(measuredOn) - Date.parse(passport.deployment.go_live)) / 86400000),
+        staff_trained: trained, weekly_active: active,
+        usage_pct: trained ? Math.round((100 * active) / trained) : 0,
+        survey: respondents ? { respondents, would_keep: keep, would_keep_pct: Math.round((100 * keep) / respondents) } : null,
+        outcome: outcomeNow(rec, kpiNow),
+        drop_off: text(input.drop_off, "drop-off", { max: 500, optional: true }),
+        citizen_impact: text(input.citizen_impact, "citizen impact", { max: 500, optional: true }),
+        operational_cost_inr: input.operational_cost_inr ? num(input.operational_cost_inr, "operational cost", { min: 0 }) : null,
+        unresolved_risks: text(input.unresolved_risks, "unresolved risks", { max: 500, optional: true }),
+      };
+      Object.assign(m, adoptionVerdict(m));
+      passport.adoption ??= { measurements: [] };
+      passport.adoption.measurements = [...passport.adoption.measurements, m].sort((a, b) => a.measured_on.localeCompare(b.measured_on));
+      passport.adoption.latest = passport.adoption.measurements.at(-1);
+      // The KPI reading joins the pilot's readings, so the trend runs baseline -> pilot -> deployment.
+      await client.query("insert into readings (record_id, reading_date, kpi_value) values ($1, $2, $3)", [rec.id, measuredOn, kpiNow]);
+      return { action: `Measured adoption at ${m.days_since_go_live} days: ${m.verdict}`, to: "Adoption measured",
+        detail: { usage_pct: m.usage_pct, kpi_now: kpiNow, verdict: m.verdict },
+        record: { adoption_pct: passport.adoption.latest.usage_pct } };
+    },
+  },
+
+  replication_review: {
+    role: "admin", states: ["Adoption measured"], label: "Review for replication",
+    run({ passport, user }, input) {
+      const decision = oneOf(input.decision, "decision", ["replicate", "hold", "learning record"]);
+      const latest = passport.adoption.latest;
+      if (decision === "replicate" && latest.verdict !== "adopted") {
+        throw new HttpError(409, `Can't recommend replication: ${latest.why} Hold for another measurement, or close it as a learning record.`);
+      }
+      const list = (v) => (Array.isArray(v) ? v : String(v ?? "").split(/[,\n]/)).map((x) => String(x).trim()).filter(Boolean).slice(0, 20);
+      const REUSABLE = ["Baseline method", "Sealed KPIs", "Risk envelope", "Validator method", "Exit annexure", "Milestone plan"];
+      const review = {
+        decision, reviewed_by: user.name, reviewed_on: today(),
+        basis: latest.why,
+        interested: list(input.interested),
+        reusable: list(input.reusable).filter((x) => REUSABLE.includes(x)),
+        remaining_risks: text(input.remaining_risks, "remaining risks", { max: 1000, optional: true }),
+        next_review: decision === "hold" ? date(input.next_review, "next review") : (input.next_review ? date(input.next_review, "next review") : null),
+        note: text(input.note, "note", { max: 1000, optional: true }),
+      };
+      if (review.next_review && review.next_review <= today()) throw bad("the next review must be in the future");
+      passport.replication = { ...review, history: [...(passport.replication?.history ?? []), review] };
+      const to = decision === "replicate" ? "Replication-ready" : decision === "learning record" ? LEARNING : undefined;
+      return { action: decision === "replicate" ? "Recommended for replication" : decision === "hold" ? "Held for another measurement" : "Closed as a learning record",
+        to, detail: { decision } };
     },
   },
 });
@@ -430,6 +538,7 @@ export async function availableActions(user, bundle) {
         mine: mine?.scores.find((x) => x.user_id === c.user_id) ?? null }));
     }
     if (name === "verify_baseline") a.quality = p.quality ?? null;
+    if (name === "replication_review") a.latest = p.adoption?.latest ?? null;
     if (name === "upload_evidence") a.milestones = ms(["planned", "evidence submitted", "returned"]);
     if (name === "review_milestone") a.milestones = ms(["evidence submitted"]);
     if (name === "record_payment") {

@@ -34,6 +34,7 @@ window.App = (() => {
       ${me?.role === "department" && !me.is_demo ? '<a href="index.html">New challenge</a>' : ""}
       ${me?.role === "startup" && !me.is_demo ? '<a href="profile.html">My profile</a>' : ""}
       <a href="passport.html">Demo passport</a>
+      <a href="dashboard.html">Dashboard</a>
       <a href="ledger.html">Payments ledger</a>
       <span class="me">${me ? `${esc(me.name)} · ${esc(ROLE[me.role])}${me.is_demo ? " (demo)" : ""} · <button class="link" id="signout">Sign out</button>`
                             : `<a href="login.html?next=${encodeURIComponent(location.pathname.slice(1) + location.search)}">Sign in</a>`}</span>`;

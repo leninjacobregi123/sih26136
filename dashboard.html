@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Programme dashboard</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .75rem; margin: 1rem 0; }
+  .tile { border: 1px solid var(--line); border-radius: 6px; padding: .7rem .8rem; }
+  .tile .n { font-size: 1.9rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .tile .l { color: var(--muted); font-size: .85rem; }
+  h2 { font-size: 1.1rem; margin: 1.4rem 0 .2rem; }
+  .pipe { display: grid; grid-template-columns: minmax(9rem, 13rem) 1fr; gap: .35rem .75rem; align-items: center; margin-top: .6rem; }
+  .pipe .s { font-size: .9rem; color: var(--muted); }
+  .pipe .bar { position: relative; height: 1.3rem; }
+  .pipe .bar i { position: absolute; left: 0; top: .2rem; bottom: .2rem; background: var(--ink); border-radius: 0 4px 4px 0; min-width: 2px; }
+  .pipe .bar i.zero { background: var(--line); }
+  .pipe .bar b { position: absolute; top: 0; font-size: .85rem; font-variant-numeric: tabular-nums; }
+  .pipe .row { display: contents; }
+  .pipe .row:hover .s { color: var(--ink); }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; margin-top: .6rem; }
+  th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th { color: var(--muted); font-size: .82rem; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+</style>
+</head>
+<body>
+<h1>Programme dashboard</h1>
+<p class="muted" id="asof">Every real pilot in the programme, from challenge to replication. Public; no sign-in; no startup or personal names.</p>
+<div id="out"></div>
+<script src="assets/app.js"></script>
+<script>
+const out = document.getElementById("out"), esc = App.esc;
+const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : "—");
+const signed = (v) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v}%`);
+const VERDICT = { adopted: ["ok", "✓ adopted"], "not adopted": ["bad", "✗ not adopted"], "outcome not held": ["warn", "! outcome not held"] };
+App.user().then(App.nav);
+App.api("/api/programme").then(({ dashboard: d, as_of, sla_days, departments }) => {
+  document.getElementById("asof").textContent += ` As of ${as_of}.`;
+  if (!d.pilots) { out.innerHTML = `<p class="muted">No real pilots yet.</p>`; return; }
+  const paid = departments.reduce((a, x) => a + x.paid, 0), onTime = departments.reduce((a, x) => a + x.paid_on_time, 0);
+  const tiles = [
+    [d.pilots, "pilots"],
+    [`${d.met} of ${d.validated}`, "validated pilots met their sealed criteria"],
+    [`${d.adoption.adopted} of ${d.adoption.measured}`, `measured deployments adopted (≥ ${d.adoption.threshold_pct}% weekly use, outcome held)`],
+    [d.replications, "ready for another department to replicate"],
+    [d.learning_records, "learning records: tested, recorded, not bought or not spread"],
+    [pct(onTime, paid), `milestone payments made within ${sla_days} days`],
+  ];
+  const max = Math.max(1, ...d.by_state.map((s) => s.n));
+  out.innerHTML = `<div class="tiles">${tiles.map(([n, l]) => `<div class="tile"><div class="n">${esc(n)}</div><div class="l">${esc(l)}</div></div>`).join("")}</div>
+
+    <h2>Where every pilot is now</h2>
+    <p class="muted">Pilots by passport state.</p>
+    <div class="pipe" role="img" aria-label="${esc(d.by_state.map((s) => `${s.state}: ${s.n}`).join("; "))}">
+      ${d.by_state.map((s) => `<div class="row" title="${esc(s.state)}: ${s.n} pilot${s.n === 1 ? "" : "s"}"><span class="s">${esc(s.state)}</span>
+        <span class="bar"><i class="${s.n ? "" : "zero"}" style="width:${(85 * s.n) / max}%"></i><b style="left:calc(${(85 * s.n) / max}% + .4rem)">${s.n}</b></span></div>`).join("")}
+    </div>
+
+    ${d.routes.length ? `<h2>How validated pilots were bought</h2><p class="muted">Routes chosen by the procurement compiler and approved by the department.</p>
+      <div class="scroll"><table><thead><tr><th>Route</th><th class="n">Pilots</th></tr></thead><tbody>
+      ${d.routes.map((r) => `<tr><td>${esc(r.name)}</td><td class="n">${r.n}</td></tr>`).join("")}</tbody></table></div>` : ""}
+
+    <h2>Results against baseline</h2>
+    <p class="muted">Improvement is measured toward each pilot's own sealed target, as a share of its baseline: positive is better.</p>
+    <div class="scroll"><table><thead><tr><th>Department</th><th>KPI</th><th class="n">Baseline</th><th class="n">Target</th>
+      <th class="n">Validated</th><th class="n">Now</th><th class="n">Weekly use</th><th>Adoption</th><th>State</th></tr></thead><tbody>
+      ${d.results.map((r) => `<tr><td>${esc(r.department)}${r.district ? `<br><span class="muted">${esc(r.district)}</span>` : ""}</td>
+        <td>${esc(r.kpi)} <span class="muted">(${esc(r.unit)})</span></td>
+        <td class="n">${r.baseline}</td><td class="n">${r.direction === "decrease" ? "≤" : "≥"} ${r.target}</td>
+        <td class="n">${r.validated ?? "—"} <span class="muted">${signed(r.validated_gain_pct)}</span></td>
+        <td class="n">${r.now ?? "—"} <span class="muted">${r.now != null ? signed(r.now_gain_pct) : ""}</span></td>
+        <td class="n">${r.usage_pct != null ? `${r.usage_pct}%` : "—"}</td>
+        <td>${r.verdict ? `<span class="${VERDICT[r.verdict][0]}">${VERDICT[r.verdict][1]}</span>` : "—"}</td>
+        <td>${esc(r.state)}</td></tr>`).join("")}
+    </tbody></table></div>
+    <p class="muted" style="margin-top:1rem">Payment promptness by department: <a href="ledger.html">payments ledger</a>.</p>`;
+}).catch((err) => { out.innerHTML = `<p class="err">${esc(err.message)}</p>`; });
+</script>
+</body>
+</html>

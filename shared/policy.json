@@ -6,5 +6,12 @@
   "deeming_gr_in_force": false,
   "deeming_gr_note": "The state Government Resolution that would let the programme authority deem a validated solution proprietary (GFR Rule 166(i)). Not issued.",
   "gem_ratings_for_full_catalogue": 3,
-  "match_weights": { "outcome_fit": 40, "evidence": 25, "data_risk": 20, "delivery": 15 }
+  "match_weights": {
+    "outcome_fit": 40,
+    "evidence": 25,
+    "data_risk": 20,
+    "delivery": 15
+  },
+  "adoption_threshold_pct": 50,
+  "adoption_basis": "Weekly active staff as a share of staff trained. Below this, a validated pilot counts as not adopted: it becomes a learning record, not a replication."
 }

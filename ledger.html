@@ -22,7 +22,7 @@
 <script>
 const out = document.getElementById("out");
 App.user().then(App.nav);
-App.api("/api/ledger").then((l) => {
+App.api("/api/programme").then((l) => {
   document.getElementById("basis").textContent =
     `How promptly departments pay startups for accepted milestones, against a ${l.sla_days}-day payment window. ${l.sla_basis} As of ${l.as_of}. Public; no sign-in; no startup names.`;
   if (!l.departments.length) { out.innerHTML = `<p class="muted">No real pilots yet.</p>`; return; }

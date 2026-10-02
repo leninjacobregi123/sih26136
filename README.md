@@ -25,12 +25,14 @@ passport.html               a passport: the demo (no ?id) or a real pilot (?id=)
 pilots.html, login.html     every real pilot; sign in (real account, or a one-click demo role)
 profile.html                a startup's profile: what screening reads (self-declared)
 ledger.html                 public payments ledger: per department, against the payment SLA
+dashboard.html              public programme dashboard: pipeline, results vs baseline, adoption, routes
 assets/app.js, app.css      shared: API calls, session, nav bar, live notifications
 api/auth.js, _auth.js       sign in / out; scrypt passwords, HMAC-signed HttpOnly session cookie
 api/passports.js            list passports; read one with your available actions; run an action
 api/_actions.js             the real workflow: who may do what, in which state, with what input
 api/evidence.js             download an evidence file (signed in, not Public Viewer)
-api/profile.js, ledger.js   startup profile; public payment aggregates (no sign-in, no startup names)
+api/profile.js              a startup's own profile
+api/programme.js            public aggregates for the ledger and dashboard (no sign-in, no names)
 api/_quality.js             quality gate: rule checks + the model over Pranjal's defect taxonomy
 api/_matching.js            hard filters with counterfactuals, then a score on published weights
 api/_procurement.js         procurement route compiler (Tier 1/2/3 rules) and payment SLA status
@@ -41,7 +43,7 @@ api/_passport.js            seal (SHA-256), hash-chained audit log, the demo's s
 shared/demo/opd-scenario.json the seeded OPD pilot: 7 roles, 10 states, 16 steps (edit content here)
 scripts/dev.mjs             npm run dev — the pages and api/ locally, like Vercel
 scripts/add-user.mjs        npm run user:add — create a real account (prints a generated password)
-scripts/*.test.mjs          npm test — 25 tests; needs TEST_DATABASE_URL (a scratch database)
+scripts/*.test.mjs          npm test — 29 tests; needs TEST_DATABASE_URL (a scratch database)
 ```
 
 ## Team
@@ -129,8 +131,12 @@ audit log with the passport in one transaction:
 | Recompute the seal, then attest met / missed | Independent Validator | Independently validated |
 | Compile the procurement route from the passport's facts | Finance / Procurement Officer | Procurement-ready (or a learning record) |
 | Approve the route | Department Officer | — |
+| Record the deployment once live | Department Officer | Deployed |
+| Measure adoption (repeatable): staff trained/active, survey, the KPI again | Department Officer | Adoption measured |
+| Review for replication: replicate, hold, or close as a learning record | Programme Administrator | Replication-ready or Learning record |
 
-Deployment, adoption and replication are phase 4.
+A pilot can also end as a **Learning record** earlier: when no lawful procurement route is open
+(usually because the validator found the criteria missed). The passport's rail stops where it did.
 
 ## Phase 3: what each engine does, and what it doesn't
 
@@ -150,6 +156,12 @@ Deployment, adoption and replication are phase 4.
   Tier 2 needs two or more validated winners, Tier 3 needs DPIIT recognition. Every rejected
   route lists the failing condition and the fact that would open it. A missed result compiles to
   a learning record, not a purchase. Not legal advice.
+- **Adoption and replication (phase 4).** Each measurement compares the KPI now with the
+  baseline, the validated result and the target, and gets a verdict: *adopted* (weekly use at or
+  above `adoption_threshold_pct`, 50%, and the outcome held), *not adopted*, or *outcome not held*.
+  Replication can only be recommended on an *adopted* verdict; otherwise hold for another
+  measurement or close as a learning record. `dashboard.html` shows the whole programme
+  publicly: pilots by state, results against each pilot's own baseline, adoption, routes taken.
 - **Payment SLA.** Accepting a milestone sets its payment due date (`payment_sla_days`, 30, a
   programme choice). The passport shows on track / overdue / paid on time / paid late, and the
   grievance clock once overdue; `ledger.html` publishes the per-department totals.
