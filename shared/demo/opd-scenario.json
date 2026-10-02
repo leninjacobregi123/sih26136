@@ -1,0 +1,326 @@
+{
+  "id": "DEMO-OPD-01",
+  "title": "Reduce OPD waiting time at district hospitals",
+  "notice": "Simulated demonstration data — not an official government record.",
+  "states": [
+    "Draft",
+    "Baseline verified",
+    "Criteria sealed",
+    "Pilot active",
+    "Evidence submitted",
+    "Independently validated",
+    "Procurement-ready",
+    "Deployed",
+    "Adoption measured",
+    "Replication-ready"
+  ],
+  "roles": [
+    { "id": "department", "label": "Department Officer", "name": "Dr. R. Wankhede (simulated)" },
+    { "id": "admin", "label": "Programme Administrator", "name": "Programme desk, MSInS (simulated)" },
+    { "id": "startup", "label": "Startup", "name": "QueueSense Systems (simulated)" },
+    { "id": "evaluator", "label": "Expert Evaluator", "name": "Evaluation panel of three (simulated)" },
+    { "id": "validator", "label": "Independent Validator", "name": "Independent validation agency (simulated)" },
+    { "id": "finance", "label": "Finance / Procurement Officer", "name": "Accounts & procurement cell (simulated)" },
+    { "id": "public", "label": "Public Viewer", "name": "Public" }
+  ],
+
+  "challenge": {
+    "department": "Public Health Department",
+    "sector": "Health",
+    "district": "Nagpur",
+    "outcome_statement": "Cut median wait from registration to first clinician contact, with no extra sanctioned staff and no change to the existing HMIS.",
+    "kpi_name": "Median wait, registration → clinician",
+    "kpi_unit": "minutes",
+    "kpi_definition": "Median of (first clinician contact − registration) over all OPD visits in the window, from existing registration and consultation timestamps.",
+    "baseline_value": 94,
+    "baseline_window": "Oct–Dec 2025",
+    "baseline_source": "District hospital OPD registration and consultation timestamps (HMIS export)",
+    "baseline_method": "All 61,480 OPD visits Oct–Dec 2025; visits missing either timestamp (3.1%) excluded and reported.",
+    "comparison_unit": "Second district hospital OPD with no deployment",
+    "duration_days": 90
+  },
+
+  "passport": {
+    "identity": {
+      "owner": "Civil Surgeon, District Hospital (simulated)",
+      "affected_population": "≈ 1,150 OPD patients a day",
+      "indicative_budget_inr": 1500000
+    },
+    "baseline": { "verified": false },
+    "criteria": [
+      { "kpi": "Median wait, registration → clinician", "unit": "min", "baseline": 94, "target": "≤ 60" },
+      { "kpi": "95th-percentile wait", "unit": "min", "baseline": 212, "target": "≤ 120" },
+      { "kpi": "Patients per clinician-hour", "unit": "patients", "baseline": 4.1, "target": "≥ 4.1 (no drop)" },
+      { "kpi": "Writes to the HMIS of record", "unit": "writes", "baseline": 0, "target": "0 (read-only)" }
+    ],
+    "seal": null,
+    "risk": null,
+    "screening": null,
+    "evaluation": null,
+    "startup": null,
+    "design": null,
+    "milestones": [
+      { "n": 1, "title": "Sandbox provisioned, baseline re-measured", "evidence_expected": "Independent baseline study, signed by the Civil Surgeon", "reviewer": "Department Officer", "due": "2026-01-14", "amount_inr": 300000, "state": "planned", "payment": { "state": "not due" } },
+      { "n": 2, "title": "Instrumentation live, read-only confirmed", "evidence_expected": "Access log extract showing zero writes to the HMIS", "reviewer": "Department Officer", "due": "2026-01-30", "amount_inr": 375000, "state": "planned", "payment": { "state": "not due" } },
+      { "n": 3, "title": "90-day operating window complete", "evidence_expected": "Raw timestamp dataset, analysis notebook, deviation log", "reviewer": "Department Officer", "due": "2026-04-06", "amount_inr": 450000, "state": "planned", "payment": { "state": "not due" } },
+      { "n": 4, "title": "Exit, data deletion certified", "evidence_expected": "Deletion certificate under the exit annexure", "reviewer": "Department Officer", "due": "2026-04-13", "amount_inr": 375000, "state": "planned", "payment": { "state": "not due" } }
+    ],
+    "evidence": [],
+    "validation": null,
+    "procurement": null,
+    "deployment": null,
+    "adoption": null,
+    "replication": null
+  },
+
+  "steps": [
+    {
+      "role": "admin",
+      "action": "Verified the baseline",
+      "note": "The programme desk re-derives 94 minutes from the raw HMIS export before anything is published. No baseline, no challenge.",
+      "state": "Baseline verified",
+      "set": {
+        "baseline": { "verified": true, "verified_by": "Programme Administrator", "result": "94 min reproduced from the raw export; 3.1% of visits excluded for missing timestamps, as stated." }
+      }
+    },
+    {
+      "role": "department",
+      "action": "Sealed and published the success criteria",
+      "note": "The baseline and four KPI targets are hashed with SHA-256 and published. Changing any of them later breaks the seal.",
+      "state": "Criteria sealed",
+      "op": "seal"
+    },
+    {
+      "role": "admin",
+      "action": "Set the risk envelope and screened applicants",
+      "note": "Five startups applied. Two fail hard filters, one is eligible only under standard conditions. Every result carries its reason.",
+      "set": {
+        "risk": {
+          "users": "One OPD, staff only; no patient-facing change",
+          "systems": "Read-only access to registration and consultation timestamps",
+          "data": "Pseudonymised timestamps; no names, no clinical data",
+          "reversibility": "Beacons removed in a day; HMIS untouched",
+          "exit_cost": "Nil beyond the M4 deletion certificate",
+          "cap_inr": 1500000,
+          "relaxation": "GFR 173(i) prior-turnover and experience waivers apply within this cap"
+        },
+        "screening": [
+          { "name": "QueueSense Systems", "dpiit": true, "result": "eligible", "why": "DPIIT-recognised; read-only design sits inside the risk cap; 173(i) relaxation applies." },
+          { "name": "Setu Health Queue", "dpiit": true, "result": "eligible", "why": "DPIIT-recognised; SMS nudges inside the cap. No live deployment yet — evidence is a replay only." },
+          { "name": "CareBridge Enterprise", "dpiit": false, "result": "standard terms", "why": "Not DPIIT-recognised, so 173(i) does not reach it; eligible only on standard turnover conditions." },
+          { "name": "MedFlow Analytics", "dpiit": true, "result": "rejected", "why": "Hard filter: needs write access to the HMIS, which the risk envelope forbids." },
+          { "name": "ShikshaTrack Labs", "dpiit": true, "result": "rejected", "why": "Hard filter: requires live personal data across districts; outside the data class." }
+        ]
+      }
+    },
+    {
+      "role": "evaluator",
+      "action": "Scored the shortlist",
+      "note": "Three evaluators score against published weights. The ranking explains itself; the panel, not a model, decides.",
+      "set": {
+        "evaluation": {
+          "weights": "Outcome fit 40 · Evidence quality 25 · Data risk 20 · Delivery capacity 15",
+          "scores": [
+            { "name": "QueueSense Systems", "total": 84, "why": "Two trust hospitals, median wait down 41% over 90 days; read-only." },
+            { "name": "Setu Health Queue", "total": 71, "why": "Strong Marathi-first design; evidence is a historical replay, not a deployment." },
+            { "name": "CareBridge Enterprise", "total": 63, "why": "Proven hardware; weaker outcome evidence; standard terms only." }
+          ],
+          "dissent": "One evaluator asked that M2 prove zero HMIS writes from logs, not a declaration. Adopted."
+        }
+      }
+    },
+    {
+      "role": "admin",
+      "action": "Awarded the pilot and signed the pilot design",
+      "note": "The panel's choice is recorded with the design it was awarded on: sandbox, data and IP terms, and four paid milestones.",
+      "state": "Pilot active",
+      "set": {
+        "startup": {
+          "name": "QueueSense Systems",
+          "location": "Nagpur",
+          "verification": { "dpiit": "Recognised (simulated certificate no.)", "udyam": "Verified (simulated)", "gst": "Verified (simulated)" },
+          "capability": "Token-free OPD flow from anonymous BLE beacons and existing registration timestamps. Read-only.",
+          "prior_evidence": "2 trust hospitals; median wait down 41% over 90 days.",
+          "first_government_supplier": true
+        },
+        "design": {
+          "scope": "One district hospital OPD, 90 days, staff-facing only",
+          "sandbox": "Isolated read replica of registration and consultation timestamps",
+          "data_access": "Pseudonymised timestamps only; no patient identifiers leave the hospital network",
+          "ip": "Startup keeps product IP; the department keeps the data and a perpetual licence to the pilot reports",
+          "cybersecurity": "Read-only DB role; access logged; CERT-In incident reporting within 6 hours",
+          "fee_inr": 1500000
+        }
+      }
+    },
+    {
+      "role": "startup",
+      "action": "Submitted evidence for milestones 1 and 2",
+      "note": "Each artefact is hashed when it is submitted. The hash, not a covering letter, is what reviewers check later.",
+      "set": { "milestones.0.state": "evidence submitted", "milestones.1.state": "evidence submitted" },
+      "evidence": [
+        { "milestone": 1, "title": "Independent baseline re-measurement", "source": "Civil Surgeon's office", "content": "Baseline study, Oct–Dec 2025: median 94 min, p95 212 min, n = 59,574 visits with both timestamps. Signed: Civil Surgeon (simulated)." },
+        { "milestone": 2, "title": "HMIS access-log extract, days 1–20", "source": "Hospital IT cell", "content": "Role qs_readonly: 41,906 SELECT, 0 INSERT, 0 UPDATE, 0 DELETE between 2026-01-15 and 2026-02-03 (simulated extract)." }
+      ]
+    },
+    {
+      "role": "department",
+      "action": "Accepted milestones 1 and 2",
+      "note": "Acceptance completes the payment packet. From here the payment clock is visible to everyone.",
+      "set": {
+        "milestones.0.state": "accepted",
+        "milestones.0.payment": { "state": "packet complete", "packet_complete_on": "2026-01-16", "expected_by": "2026-01-31" },
+        "milestones.1.state": "accepted",
+        "milestones.1.payment": { "state": "packet complete", "packet_complete_on": "2026-02-05", "expected_by": "2026-02-20" }
+      }
+    },
+    {
+      "role": "finance",
+      "action": "Paid milestone 1; recorded milestone 2 as delayed",
+      "note": "One payment on time, one late — and the late one carries its reason and an open grievance clock instead of disappearing.",
+      "set": {
+        "milestones.0.payment": { "state": "paid", "packet_complete_on": "2026-01-16", "expected_by": "2026-01-31", "paid_on": "2026-01-28" },
+        "milestones.1.payment": { "state": "delayed", "packet_complete_on": "2026-02-05", "expected_by": "2026-02-20", "delay_reason": "Budget head re-appropriation pending with the treasury", "grievance_clock": "opened 2026-02-21; 30-day response window" }
+      }
+    },
+    {
+      "role": "startup",
+      "action": "Submitted evidence for milestones 3 and 4",
+      "note": "The 90-day dataset goes to the validator untouched. The exit certificate proves the startup's copy of the data is gone.",
+      "state": "Evidence submitted",
+      "set": { "milestones.2.state": "evidence submitted", "milestones.3.state": "evidence submitted" },
+      "evidence": [
+        { "milestone": 3, "title": "Raw 90-day timestamp dataset", "source": "QueueSense Systems", "content": "opd_timestamps_2026-01-06_2026-04-05.csv — 102,815 visits, pseudonymised (simulated)." },
+        { "milestone": 3, "title": "Analysis notebook and deviation log", "source": "QueueSense Systems", "content": "analysis.ipynb; deviations: beacon outage 2026-02-18 (6 h), excluded and disclosed (simulated)." },
+        { "milestone": 4, "title": "Data deletion certificate", "source": "QueueSense Systems, countersigned by hospital IT", "content": "All pilot data held by the startup deleted 2026-04-11 under exit annexure clause 4 (simulated)." }
+      ]
+    },
+    {
+      "role": "department",
+      "action": "Accepted milestones 3 and 4",
+      "note": "All four milestones are in. The validator can start only now — and was named before any result existed.",
+      "set": {
+        "milestones.2.state": "accepted",
+        "milestones.2.payment": { "state": "packet complete", "packet_complete_on": "2026-04-08", "expected_by": "2026-04-23" },
+        "milestones.3.state": "accepted",
+        "milestones.3.payment": { "state": "packet complete", "packet_complete_on": "2026-04-13", "expected_by": "2026-04-28" }
+      }
+    },
+    {
+      "role": "finance",
+      "action": "Cleared the delayed payment and paid milestones 3 and 4",
+      "note": "Milestone 2 was paid 11 days late; the delay and its reason stay on the record. Payment trace complete.",
+      "set": {
+        "milestones.1.payment": { "state": "paid late", "packet_complete_on": "2026-02-05", "expected_by": "2026-02-20", "paid_on": "2026-03-03", "delay_days": 11, "delay_reason": "Budget head re-appropriation pending with the treasury", "grievance_clock": "closed on payment" },
+        "milestones.2.payment": { "state": "paid", "packet_complete_on": "2026-04-08", "expected_by": "2026-04-23", "paid_on": "2026-04-21" },
+        "milestones.3.payment": { "state": "paid", "packet_complete_on": "2026-04-13", "expected_by": "2026-04-28", "paid_on": "2026-04-25" }
+      }
+    },
+    {
+      "role": "validator",
+      "action": "Recomputed the seal and attested the result",
+      "note": "The validator first recomputes the SHA-256 seal. Only if the criteria are the ones published does it assess the evidence.",
+      "state": "Independently validated",
+      "op": "verify_seal",
+      "set": {
+        "validation": {
+          "method": "Difference-in-differences against the comparison OPD; bootstrap 95% CI over daily medians",
+          "result": "Met all four sealed criteria",
+          "kpis": [
+            { "kpi": "Median wait, registration → clinician", "baseline": 94, "achieved": 55, "target": "≤ 60", "met": true },
+            { "kpi": "95th-percentile wait", "baseline": 212, "achieved": 118, "target": "≤ 120", "met": true },
+            { "kpi": "Patients per clinician-hour", "baseline": 4.1, "achieved": 4.3, "target": "≥ 4.1 (no drop)", "met": true },
+            { "kpi": "Writes to the HMIS of record", "baseline": 0, "achieved": 0, "target": "0 (read-only)", "met": true }
+          ],
+          "exceptions": "6-hour beacon outage on 2026-02-18 excluded; result unchanged with it included (median 56 min).",
+          "attestation": "Signed attestation recorded in the signatures table"
+        }
+      },
+      "record": {
+        "status": "complete",
+        "post_value": 55,
+        "delta": -39,
+        "ci_low": -44,
+        "ci_high": -33,
+        "method": "Difference-in-differences vs comparison OPD",
+        "pilot_cost_inr": 1500000,
+        "result_direction": "IMPROVED"
+      },
+      "signature": { "name": "Independent validation agency (simulated)", "role": "Independent Validator", "dissent_note": null },
+      "readings": [
+        ["2026-01-11", 91], ["2026-01-18", 86], ["2026-01-25", 79], ["2026-02-01", 72],
+        ["2026-02-08", 66], ["2026-02-15", 63], ["2026-02-22", 60], ["2026-03-01", 58],
+        ["2026-03-08", 57], ["2026-03-15", 55], ["2026-03-22", 54], ["2026-03-29", 55],
+        ["2026-04-05", 55]
+      ]
+    },
+    {
+      "role": "finance",
+      "action": "Compiled the procurement route",
+      "note": "A rules trace, not legal advice from a model: facts, the routes considered, why two were rejected, and who must approve.",
+      "state": "Procurement-ready",
+      "set": {
+        "procurement": {
+          "facts": ["One validated winner", "Same department wants to buy", "Scale-up to other districts likely", "State deeming GR not issued", "Product holds 2 of 3 GeM buyer ratings"],
+          "accepted": { "route": "Tier 3 — GeM Startup Runway replication", "basis": "GeM Startup Runway listing procedure, with GFR 173(i) and 170(i) supplying the entry waivers.", "next": "This pilot is the second Runway trial; one more buyer rating moves the product to the full GeM catalogue." },
+          "rejected": [
+            { "route": "Tier 1 — Proprietary Article Certificate", "why": "Needs the state deeming GR, which is not in force. 'Won our challenge' is not a lawful ground under Rule 166." },
+            { "route": "Tier 2 — Limited tender to the winners", "why": "Only one startup met the criteria; a limited tender needs a cohort of proven winners." }
+          ],
+          "counterfactual": "If the deeming Government Resolution were in force, Tier 1 would be available for this same-department purchase.",
+          "approvals": ["Department Officer (route approval)", "Finance / Procurement Officer (GeM order)"]
+        }
+      }
+    },
+    {
+      "role": "department",
+      "action": "Approved the route and deployed",
+      "note": "The purchase is on the record against the evidence that justified it.",
+      "state": "Deployed",
+      "set": {
+        "procurement.approved_by": "Department Officer",
+        "deployment": {
+          "order": "GeM Startup Runway order (simulated reference)",
+          "sites": "District hospital OPD (pilot site, now permanent)",
+          "go_live": "2026-05-04",
+          "annual_cost_inr": 240000
+        }
+      }
+    },
+    {
+      "role": "department",
+      "action": "Recorded adoption at 60 days after deployment",
+      "note": "A pilot that passed but nobody uses is a learning record, not a success. This one is still in use, and the outcome held.",
+      "state": "Adoption measured",
+      "set": {
+        "adoption": {
+          "measured_on": "2026-07-03",
+          "staff_trained": 46,
+          "weekly_active_staff": 38,
+          "usage_rate_pct": 83,
+          "drop_off": "Night-shift registration staff use it least (9 of 14 active)",
+          "outcome_persistence": "Median wait 57 min at 60 days (target ≤ 60) — held",
+          "citizen_impact": "≈ 37 minutes saved per OPD visit, ≈ 1,150 visits a day",
+          "operational_cost_inr": 240000,
+          "unresolved_risks": "No owner yet for beacon battery replacement"
+        }
+      },
+      "record": { "adoption_pct": 83 }
+    },
+    {
+      "role": "admin",
+      "action": "Reviewed for replication",
+      "note": "A second department can now read this passport instead of starting from an unverified promise.",
+      "state": "Replication-ready",
+      "set": {
+        "replication": {
+          "decision": "Ready for replication through GeM Startup Runway",
+          "interested": ["District hospital, Amravati (simulated)", "District hospital, Akola (simulated)"],
+          "reusable": "Baseline method, sealed KPIs, risk envelope, validator method, exit annexure",
+          "remaining_risks": "Assign beacon maintenance; re-measure baseline at each new site",
+          "next_review": "2026-12-01"
+        }
+      }
+    }
+  ]
+}

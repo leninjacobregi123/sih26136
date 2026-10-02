@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pilot Evidence Passport</title>
+<style>
+  :root { --ink: #111; --muted: #5b5b5b; --line: #d6d6d6; --soft: #f4f4f4; --ok: #146c2e; --bad: #a3141b; --warn: #8a5a00; }
+  * { box-sizing: border-box; }
+  body { font: 15px/1.5 system-ui, sans-serif; color: var(--ink); background: #fff; max-width: 64rem; margin: 0 auto; padding: 1rem; }
+  h1 { font-size: 1.6rem; margin: .5rem 0 0; }
+  h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
+  .sub { color: var(--muted); margin: .15rem 0 0; }
+  .notice { border: 1px solid var(--ink); padding: .4rem .75rem; font-weight: 600; font-size: .9rem; }
+  #preview { background: #fff4d6; padding: .5rem .75rem; }
+  .controls { position: sticky; top: 0; z-index: 2; background: #fff; border-bottom: 1px solid var(--line); padding: .75rem 0; margin-top: .75rem; }
+  .row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  button, select { font: inherit; padding: .45rem .8rem; border: 1px solid var(--ink); background: #fff; color: var(--ink); border-radius: 4px; cursor: pointer; }
+  button.primary { background: var(--ink); color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  label.role { font-weight: 600; }
+  #next { margin-top: .6rem; background: var(--soft); padding: .6rem .75rem; border-left: 3px solid var(--ink); }
+  #next p { margin: .2rem 0 0; color: var(--muted); }
+  #status { min-height: 1.4em; margin: .4rem 0 0; font-size: .9rem; }
+  #status.err { color: var(--bad); font-weight: 600; }
+  .rail { display: flex; flex-wrap: wrap; gap: .25rem; list-style: none; padding: 0; margin: 1rem 0; counter-reset: s; }
+  .rail li { counter-increment: s; font-size: .8rem; padding: .25rem .5rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+  .rail li::before { content: counter(s) ". "; }
+  .rail li.done { color: var(--ink); border-color: var(--ink); }
+  .rail li.now { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+  .badge { font-size: .85rem; padding: .25rem .6rem; border-radius: 4px; border: 1px solid currentColor; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); } .muted { color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 28rem), 1fr)); gap: .75rem; }
+  section.card { border: 1px solid var(--line); border-radius: 6px; padding: .8rem .9rem; break-inside: avoid; min-width: 0; }
+  section.card.wide { grid-column: 1 / -1; }
+  section.card.empty h2 { color: var(--muted); }
+  .num { color: var(--muted); font-weight: 400; margin-right: .3rem; }
+  dl { display: grid; grid-template-columns: minmax(7rem, 11rem) 1fr; gap: .2rem .75rem; margin: 0; }
+  dt { color: var(--muted); font-size: .88rem; }
+  dd { margin: 0; overflow-wrap: anywhere; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: .3rem .4rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .82rem; }
+  .date { white-space: nowrap; }
+  code { font: .8rem ui-monospace, monospace; overflow-wrap: anywhere; }
+  .why { color: var(--muted); font-size: .86rem; }
+  ul.plain { margin: .25rem 0; padding-left: 1.1rem; }
+  ol.audit { list-style: none; padding: 0; margin: 0; }
+  ol.audit li { border-left: 2px solid var(--ink); padding: 0 0 .8rem .8rem; position: relative; }
+  ol.audit li::before { content: ""; position: absolute; left: -6px; top: .35rem; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid var(--ink); }
+  ol.audit li.broken { border-left-color: var(--bad); }
+  ol.audit .meta { color: var(--muted); font-size: .82rem; }
+  @media (max-width: 40rem) { .controls { position: static; } }
+  @media (max-width: 30rem) { dl { grid-template-columns: 1fr; } dt { margin-top: .35rem; } }
+  @media print {
+    html { font-size: 11.5px; }
+    body { max-width: none; padding: 0; font-size: 11.5px; }
+    .controls, #preview, #empty-state { display: none !important; }
+    section.card { border-color: #999; }
+    .rail li.now { background: #fff; color: #000; border-width: 2px; font-weight: 700; }
+    @page { size: A4; margin: 14mm 12mm; }
+  }
+</style>
+</head>
+<body>
+<p id="preview" hidden><b>Work-in-progress preview.</b> This host has no backend, so the demo cannot load here. Open it on the Vercel app.</p>
+<p class="notice">Simulated demonstration data — not an official government record.</p>
+
+<header>
+  <h1>Pilot Evidence Passport</h1>
+  <p class="sub" id="subtitle">One portable record of a pilot, from sealed baseline to replication.</p>
+</header>
+
+<div class="controls">
+  <div class="row">
+    <label class="role" for="role">Acting as</label>
+    <select id="role"></select>
+    <button id="load">Load demo scenario</button>
+    <button id="advance" class="primary">Advance to next stage</button>
+    <button id="reset">Reset demo</button>
+    <button id="to-audit">View audit timeline</button>
+    <button id="print">Download Evidence Passport</button>
+  </div>
+  <div id="next" hidden></div>
+  <p id="status" role="status"></p>
+</div>
+
+<p id="empty-state" class="muted">No demo is loaded. Press <b>Load demo scenario</b> to seed the district-hospital OPD pilot at <i>Draft</i>, then walk it forward with <b>Advance to next stage</b>, switching role when a step asks for it.</p>
+
+<main id="passport" hidden>
+  <ol class="rail" id="rail" aria-label="Passport state"></ol>
+  <div class="badges" id="badges"></div>
+  <div class="grid" id="sections"></div>
+  <section class="card wide" id="audit" style="margin-top:.75rem">
+    <h2><span class="num">14</span>Audit timeline</h2>
+    <p class="why" id="chain-note"></p>
+    <ol class="audit" id="audit-list"></ol>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const inr = (n) => n == null ? "" : "₹" + (Number(n) / 1e5).toLocaleString("en-IN", { maximumFractionDigits: 2 }) + " L";
+const when = (t) => t ? new Date(t).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "";
+const date = (d) => d ? `<span class="date">${esc(d)}</span>` : "";
+const short = (h) => h ? `<code title="${esc(h)}">${esc(h.slice(0, 16))}…</code>` : "";
+
+const STATIC_HOST = /(^|\.)leninjacobregi\.me$|\.github\.io$/.test(location.hostname);
+$("preview").hidden = !STATIC_HOST;
+
+let data = null, busy = false;
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+                set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+
+async function call(method, body) {
+  if (STATIC_HOST) throw new Error("this preview host has no backend.");
+  const res = await fetch("/api/demo", {
+    method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body),
+  });
+  if (!res.headers.get("content-type")?.includes("application/json")) throw new Error("the backend isn't reachable from this address.");
+  const out = await res.json();
+  if (!res.ok) { const e = new Error(out.error || "request failed"); e.body = out; throw e; }
+  return out;
+}
+
+async function act(body, done) {
+  if (busy) return;
+  busy = true; paintControls(); say("Working…");
+  try {
+    data = await call("POST", body);
+    say(done ? done() : "");
+  } catch (err) {
+    say(err.message, true);
+    if (err.body?.loaded !== undefined) data = err.body;
+  }
+  busy = false; paint();
+}
+
+function say(msg, err) { $("status").textContent = msg || ""; $("status").className = err ? "err" : ""; }
+const role = () => $("role").value;
+const roleLabel = (id) => data?.roles.find((r) => r.id === id)?.label ?? id;
+
+$("load").onclick = () => act({ action: "load" }, () => "Demo loaded at Draft.");
+$("reset").onclick = () => act({ action: "reset" }, () => "Demo removed. Nothing simulated is left in the database.");
+$("advance").onclick = () => act({ action: "advance", role: role() }, () => `Done: ${data.audit.at(-1)?.action}.`);
+$("to-audit").onclick = () => $("audit").scrollIntoView({ behavior: "smooth" });
+$("print").onclick = () => window.print();
+$("role").onchange = () => { store.set("passport.role", role()); paintControls(); };
+
+function paintControls() {
+  const loaded = !!data?.loaded, next = data?.next;
+  $("advance").disabled = busy || !loaded || !next || next.role !== role();
+  for (const id of ["load", "reset", "print", "to-audit"]) $(id).disabled = busy || (!loaded && id !== "load");
+  $("load").textContent = loaded ? "Reload demo scenario" : "Load demo scenario";
+  const box = $("next");
+  box.hidden = !loaded;
+  if (!loaded) return;
+  if (!next) { box.innerHTML = `<b>Demo complete.</b><p>The passport is ${esc(data.record.passport_state)}. Download it, or reload to walk it again.</p>`; return; }
+  const mine = next.role === role();
+  box.innerHTML = `<b>Step ${next.step} of ${data.total_steps} · ${esc(roleLabel(next.role))}:</b> ${esc(next.action)}
+    <p>${esc(next.note)}</p>
+    ${mine ? "" : `<p>This step belongs to the ${esc(roleLabel(next.role))}. <button id="switch">Switch to ${esc(roleLabel(next.role))}</button></p>`}`;
+  if (!mine) $("switch").onclick = () => { $("role").value = next.role; store.set("passport.role", next.role); paintControls(); };
+}
+
+function paint() {
+  if (data && !$("role").options.length) {
+    $("role").innerHTML = data.roles.map((r) => `<option value="${r.id}">${esc(r.label)}</option>`).join("");
+    const saved = store.get("passport.role");
+    $("role").value = data.roles.some((r) => r.id === saved) ? saved : data.roles[0].id;
+  }
+  paintControls();
+  const loaded = !!data?.loaded;
+  $("empty-state").hidden = loaded;
+  $("passport").hidden = !loaded;
+  if (!loaded) return;
+
+  const { passport: p, challenge: c, record: r } = data;
+  $("subtitle").textContent = `${c.pr_id} · ${data.title} · ${c.department}, ${c.district}`;
+  document.title = `Pilot Evidence Passport · ${c.pr_id}`;
+
+  const at = data.states.indexOf(r.passport_state);
+  $("rail").innerHTML = data.states.map((s, i) =>
+    `<li class="${i < at ? "done" : i === at ? "now" : ""}"${i === at ? ' aria-current="step"' : ""}>${esc(s)}</li>`).join("");
+
+  $("badges").innerHTML = [
+    data.seal ? `<span class="badge ${data.seal.intact ? "ok" : "bad"}">${data.seal.intact ? "✓ Seal intact" : "⚠ Seal broken: criteria changed after publication"}</span>`
+              : `<span class="badge muted">Criteria not sealed yet</span>`,
+    `<span class="badge ${data.chain.intact ? "ok" : "bad"}">${data.chain.intact ? `✓ Audit chain intact · ${data.chain.events} events` : `⚠ Audit chain broken at event ${data.chain.broken_at + 1}`}</span>`,
+  ].join("");
+
+  $("sections").innerHTML = SECTIONS.map(([n, title, fills, body, wide]) => {
+    const html = body(p, c, r);
+    return `<section class="card${wide ? " wide" : ""}${html ? "" : " empty"}"><h2><span class="num">${n}</span>${title}</h2>
+      ${html || `<p class="why">Not yet recorded. Filled at <i>${esc(fills)}</i>.</p>`}</section>`;
+  }).join("");
+
+  $("chain-note").textContent = "Each event's SHA-256 covers the event before it. The database refuses edits to this log, so changing history means breaking the chain.";
+  const broken = data.chain.intact ? Infinity : data.chain.broken_at;
+  $("audit-list").innerHTML = data.audit.map((e, i) => `<li class="${i >= broken ? "broken" : ""}">
+    <b>${esc(e.action)}</b>
+    <div class="meta">${when(e.at)} · ${esc(e.actor_role)} (${esc(e.actor_name)}) · ${short(e.hash)}</div>
+    ${e.detail?.from ? `<div class="why">${esc(e.detail.from)} → ${esc(e.detail.to)}</div>` : ""}
+    ${e.detail?.seal ? `<div class="why">Seal ${short(e.detail.seal)}</div>` : ""}
+    ${e.detail?.seal_recomputed ? `<div class="why">Recomputed seal matched ${short(e.detail.seal_recomputed)}</div>` : ""}
+    ${e.detail?.recomputed ? `<div class="why bad">Sealed ${short(e.detail.sealed)} ≠ recomputed ${short(e.detail.recomputed)}</div>` : ""}
+    ${(e.detail?.evidence ?? []).map((x) => `<div class="why">${esc(x.title)} ${short(x.sha256)}</div>`).join("")}
+  </li>`).join("");
+}
+
+const dl = (pairs) => {
+  const rows = pairs.filter(([, v]) => v !== undefined && v !== null && v !== "");
+  return rows.length ? `<dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>` : "";
+};
+const table = (head, rows) => `<div class="scroll"><table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
+  <tbody>${rows.map((cells) => `<tr>${cells.map((x) => `<td>${x}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+const tone = (s) => /paid$|accepted|met|eligible|verified/i.test(s) ? "ok" : /delayed|late|standard/i.test(s) ? "warn" : /rejected|missed|disputed/i.test(s) ? "bad" : "muted";
+
+// [number, title, state that fills it, render(passport, challenge, record) -> html or "", full width]
+const SECTIONS = [
+  [1, "Challenge identity", "Draft", (p, c, r) => dl([
+    ["Department", esc(c.department)], ["District", esc(c.district)], ["Sector", esc(c.sector)],
+    ["Problem", esc(c.outcome_statement)], ["Owner", esc(p.identity?.owner)],
+    ["Affected", esc(p.identity?.affected_population)], ["Indicative budget", inr(p.identity?.indicative_budget_inr)],
+    ["Status", `<b>${esc(r.passport_state)}</b>`],
+  ])],
+  [2, "Baseline", "Draft", (p, c) => dl([
+    ["Measure", `${esc(c.kpi_name)} (${esc(c.kpi_unit)})`], ["Definition", esc(c.kpi_definition)],
+    ["Baseline", `<b>${esc(Number(c.baseline_value))} ${esc(c.kpi_unit)}</b> · ${esc(c.baseline_window)}`],
+    ["Source", esc(c.baseline_source)], ["Method", esc(c.baseline_method)], ["Comparison", esc(c.comparison_unit)],
+    ["Verification", p.baseline?.verified ? `<span class="ok">✓ ${esc(p.baseline.verified_by)}</span> — ${esc(p.baseline.result)}` : `<span class="muted">Not yet verified</span>`],
+  ])],
+  [3, "Success criteria", "Draft", (p) => table(["KPI", "Baseline", "Target"],
+      p.criteria.map((k) => [esc(k.kpi), `${esc(k.baseline)} ${esc(k.unit)}`, esc(k.target)]))
+    + (p.seal ? `<p class="why">Sealed ${when(p.seal.sealed_at)} · SHA-256 <code>${esc(p.seal.sha256)}</code></p>` : `<p class="why">Not sealed yet. Until it is, these targets can still move.</p>`)],
+  [4, "Risk envelope", "Criteria sealed", (p) => p.risk && dl([
+    ["Users", esc(p.risk.users)], ["Systems", esc(p.risk.systems)], ["Data", esc(p.risk.data)],
+    ["Reversibility", esc(p.risk.reversibility)], ["Exit cost", esc(p.risk.exit_cost)],
+    ["Total cap", inr(p.risk.cap_inr)], ["Relaxation", esc(p.risk.relaxation)],
+  ])],
+  [5, "Startup", "Pilot active", (p) => !p.screening ? "" :
+    `<p class="why"><b>Screening</b> — every result carries its reason.</p>`
+    + table(["Applicant", "Result", "Why"], p.screening.map((s) => [esc(s.name), `<span class="${tone(s.result)}">${esc(s.result)}</span>`, `<span class="why">${esc(s.why)}</span>`]))
+    + (p.evaluation ? `<p class="why" style="margin-top:.6rem"><b>Panel scores</b> — ${esc(p.evaluation.weights)}</p>`
+      + table(["Startup", "Score", "Reason"], p.evaluation.scores.map((s) => [esc(s.name), `<b>${s.total}</b>`, `<span class="why">${esc(s.why)}</span>`]))
+      + `<p class="why">Dissent: ${esc(p.evaluation.dissent)}</p>` : "")
+    + (p.startup ? `<p style="margin:.6rem 0 .3rem"><b>Selected: ${esc(p.startup.name)}</b>, ${esc(p.startup.location)}${p.startup.first_government_supplier ? " · first government supplier" : ""}</p>`
+      + dl([["DPIIT", esc(p.startup.verification.dpiit)], ["Udyam", esc(p.startup.verification.udyam)], ["GST", esc(p.startup.verification.gst)],
+            ["Capability", esc(p.startup.capability)], ["Prior evidence", esc(p.startup.prior_evidence)]]) : ""), true],
+  [6, "Pilot design", "Pilot active", (p) => p.design && dl([
+    ["Scope", esc(p.design.scope)], ["Sandbox", esc(p.design.sandbox)], ["Data access", esc(p.design.data_access)],
+    ["IP", esc(p.design.ip)], ["Cybersecurity", esc(p.design.cybersecurity)], ["Pilot fee", inr(p.design.fee_inr)],
+  ]), true],
+  [7, "Milestones", "Pilot active", (p) => table(["#", "Milestone", "Evidence expected", "Due", "Amount", "State"],
+    p.milestones.map((m) => [m.n, esc(m.title), `<span class="why">${esc(m.evidence_expected)}</span>`, date(m.due), inr(m.amount_inr),
+      `<span class="${tone(m.state)}">${esc(m.state)}</span>`])), true],
+  [8, "Evidence", "Pilot active", (p) => p.evidence.length && table(["M", "Artefact", "Source", "SHA-256", "Submitted"],
+    p.evidence.map((e) => [e.milestone, esc(e.title), `<span class="why">${esc(e.source)}</span>`, short(e.sha256), when(e.submitted_at)])), true],
+  [9, "Validation", "Independently validated", (p, c, r) => p.validation && (
+    `<p><b class="ok">${esc(p.validation.result)}</b></p>`
+    + table(["KPI", "Baseline", "Achieved", "Target", ""], p.validation.kpis.map((k) => [esc(k.kpi), esc(k.baseline), `<b>${esc(k.achieved)}</b>`, esc(k.target), k.met ? `<span class="ok">✓ met</span>` : `<span class="bad">✗ missed</span>`]))
+    + dl([["Method", esc(p.validation.method)],
+          ["Effect", r.delta != null ? `${esc(Number(r.delta))} ${esc(c.kpi_unit)} (95% CI ${esc(Number(r.ci_low))} to ${esc(Number(r.ci_high))})` : ""],
+          ["Exceptions", esc(p.validation.exceptions)],
+          ["Weekly median", data.readings.map((x) => esc(Number(x.kpi_value))).join(" → ")],
+          ["Attested by", data.signatures.map((s) => `${esc(s.signer_name)}, ${esc(s.signer_role)} · ${when(s.signed_at)}${s.dissent_note ? ` · dissent: ${esc(s.dissent_note)}` : ""}`).join("<br>")]])), true],
+  [10, "Payment trace", "Pilot active", (p) => p.milestones.some((m) => m.payment.state !== "not due") && (
+    table(["#", "Amount", "Payment", "Packet complete", "Expected by", "Paid on", "Delay"],
+      p.milestones.map((m) => { const y = m.payment; return [m.n, inr(m.amount_inr), `<span class="${tone(y.state)}">${esc(y.state)}</span>`,
+        date(y.packet_complete_on), date(y.expected_by), date(y.paid_on),
+        y.delay_reason ? `<span class="why">${y.delay_days ? `${y.delay_days} days · ` : ""}${esc(y.delay_reason)}${y.grievance_clock ? ` · grievance ${esc(y.grievance_clock)}` : ""}</span>` : ""]; }))
+    + `<p class="why">Paid ${inr(p.milestones.filter((m) => /paid/.test(m.payment.state)).reduce((a, m) => a + m.amount_inr, 0))} of ${inr(p.milestones.reduce((a, m) => a + m.amount_inr, 0))}. Scenario dates; no treasury or PFMS link.</p>`), true],
+  [11, "Procurement", "Procurement-ready", (p) => p.procurement && (
+    `<p class="why"><b>Facts</b></p><ul class="plain">${p.procurement.facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>`
+    + `<p><b class="ok">Accepted: ${esc(p.procurement.accepted.route)}</b><br><span class="why">${esc(p.procurement.accepted.basis)} ${esc(p.procurement.accepted.next)}</span></p>`
+    + p.procurement.rejected.map((x) => `<p><b class="bad">Rejected: ${esc(x.route)}</b><br><span class="why">${esc(x.why)}</span></p>`).join("")
+    + `<p><b>Counterfactual:</b> ${esc(p.procurement.counterfactual)}</p>`
+    + dl([["Approvals", p.procurement.approvals.map(esc).join("<br>")], ["Approved by", esc(p.procurement.approved_by) || `<span class="muted">Awaiting route approval</span>`]])), true],
+  [12, "Deployment & adoption", "Deployed", (p) => p.deployment && dl([
+    ["Order", esc(p.deployment.order)], ["Sites", esc(p.deployment.sites)], ["Go-live", esc(p.deployment.go_live)],
+    ["Annual cost", inr(p.deployment.annual_cost_inr)],
+    ...(p.adoption ? [["Measured on", esc(p.adoption.measured_on)], ["Staff trained", esc(p.adoption.staff_trained)],
+      ["Weekly active", `${esc(p.adoption.weekly_active_staff)} (${esc(p.adoption.usage_rate_pct)}%)`], ["Drop-off", esc(p.adoption.drop_off)],
+      ["Outcome held?", esc(p.adoption.outcome_persistence)], ["Citizen impact", esc(p.adoption.citizen_impact)],
+      ["Unresolved risk", esc(p.adoption.unresolved_risks)]] : [["Adoption", `<span class="muted">Not measured yet</span>`]]),
+  ])],
+  [13, "Replication", "Replication-ready", (p) => p.replication && dl([
+    ["Decision", `<b class="ok">${esc(p.replication.decision)}</b>`], ["Interested", p.replication.interested.map(esc).join("<br>")],
+    ["Reusable", esc(p.replication.reusable)], ["Remaining risks", esc(p.replication.remaining_risks)], ["Next review", esc(p.replication.next_review)],
+  ])],
+];
+
+call("GET").then((d) => { data = d; paint(); }).catch((err) => { say("Could not load: " + err.message, true); paintControls(); });
+</script>
+</body>
+</html>

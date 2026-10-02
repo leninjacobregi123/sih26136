@@ -21,6 +21,12 @@ scripts/seed-records.mjs    loads Jones's (M5) CSV and embeds each record with l
 db/schema.sql               item 3 — pgvector + the four tables (safe to re-run)
 api/challenges.js           item 4 — POST refuses without baseline value/source/method
 index.html                  item 4 — the composer; submit disabled until the three are filled
+passport.html               phase 1 — the Pilot Evidence Passport demo: roles, advance, audit, print
+api/demo.js                 GET the demo passport; POST load / reset / advance (role-checked)
+api/_passport.js            seal (SHA-256), step engine, hash-chained audit log
+shared/demo/opd-scenario.json the seeded OPD pilot: 7 roles, 10 states, 16 steps (edit content here)
+scripts/dev.mjs             npm run dev — the pages and api/ locally, like Vercel
+scripts/passport.test.mjs   npm test — needs TEST_DATABASE_URL (a scratch database)
 ```
 
 ## Team
@@ -47,7 +53,7 @@ index.html                  item 4 — the composer; submit disabled until the t
    ```
    npm install
    npm run smoke      # item 2 locally: PASS llm / PASS embeddings / PASS db
-   npm run db:init    # item 3: prints the four table names
+   npm run db:init    # item 3: prints the five table names (re-run after pulling: it's safe)
    ```
 4. **Deploy.** Your Vercel CLI token has expired, so run `vercel login` first. Then from this folder:
    ```
@@ -58,6 +64,27 @@ index.html                  item 4 — the composer; submit disabled until the t
    npm run smoke -- --url=https://<your-app>.vercel.app   # item 2 on the deployed host
    ```
 5. Open the live URL, create one challenge, then check it at `/api/challenges`.
+
+## Evidence Passport demo (phase 1 of APPLICATION_UPDATE.md)
+
+`passport.html` walks one seeded pilot (district-hospital OPD waiting time) from Draft to
+Replication-ready in 16 steps, in about ten minutes. **Load demo scenario**, then
+**Advance to next stage**; each step belongs to one of seven roles, and the server refuses it
+from any other (the role switch is a demo control, not a login: that is phase 2).
+**Download Evidence Passport** prints it to PDF. **Reset demo** removes every simulated row.
+
+What is real, not staged: the SHA-256 seal over the baseline and KPI targets (stored in
+`challenges.lock_hash`), the validator recomputing it before attesting (change a target after
+sealing and validation is refused, on the record), the SHA-256 of every evidence artefact, and
+the audit log, which the database keeps append-only and which is hash-chained so an edited or
+forged event shows as a broken chain. Dates, names, payments and results are scenario data,
+labelled as simulated on the page.
+
+```
+npm run db:init                                  # adds audit_events + passport columns
+npm run dev                                      # http://localhost:3000/passport.html
+TEST_DATABASE_URL=postgresql://... npm test       # 7 tests; use a scratch database
+```
 
 ## Embeddings: local, not an API
 

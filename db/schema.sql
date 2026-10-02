@@ -1,5 +1,5 @@
 -- Run once against the Postgres that DATABASE_URL points at (Neon or Supabase).
--- Four tables. Not five.
+-- Four tables, plus the audit log the Evidence Passport needs (bottom of file).
 create extension if not exists vector;
 
 create table if not exists challenges (
@@ -55,3 +55,40 @@ create table if not exists signatures (
   dissent_note text,
   signed_at   timestamptz default now()
 );
+
+-- ---------------------------------------------------------------------------
+-- Pilot Evidence Passport (APPLICATION_UPDATE.md, phase 1).
+-- The passport is a pilot's `records` row: its state, and the sections the four
+-- tables have no columns for, kept as one jsonb document. The seal reuses
+-- challenges.lock_hash / locked_at; the validator signs in `signatures`.
+alter table challenges add column if not exists is_simulated boolean not null default false;
+alter table records    add column if not exists passport_state text;
+alter table records    add column if not exists passport jsonb;
+alter table records    add column if not exists demo_step int;
+
+-- Every passport action, hash-chained per record: each row's hash covers the
+-- previous row's hash, so editing or removing any event breaks the chain.
+create table if not exists audit_events (
+  id           bigserial primary key,
+  record_id    uuid not null references records(id),
+  at           timestamptz not null,
+  actor_role   text not null,
+  actor_name   text not null,
+  action       text not null,
+  detail       jsonb,
+  is_simulated boolean not null default false,
+  prev_hash    text,
+  hash         text not null
+);
+create index if not exists audit_events_record on audit_events (record_id, id);
+
+-- Append-only. The one exception is "Reset demo", which may remove simulated events.
+create or replace function audit_events_append_only() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'DELETE' and old.is_simulated then return old; end if;
+  raise exception 'audit_events is append-only';
+end $$;
+drop trigger if exists audit_events_append_only on audit_events;
+create trigger audit_events_append_only before update or delete on audit_events
+  for each row execute function audit_events_append_only();

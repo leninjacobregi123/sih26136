@@ -51,14 +51,18 @@ export const CHALLENGE_FIELDS = [
   "baseline_method", "comparison_unit", "duration_days",
 ];
 
+const TABLES = ["audit_events", "challenges", "readings", "records", "signatures"];
+
 export async function checkDb() {
   const { rows } = await db().query(
     `select table_name from information_schema.tables
       where table_schema = 'public' and table_name = any($1)`,
-    [["challenges", "records", "readings", "signatures"]],
+    [TABLES],
   );
   const found = rows.map((r) => r.table_name).sort();
-  if (found.length !== 4) throw new Error(`expected 4 tables, found: ${found.join(", ") || "none"}`);
+  if (found.length !== TABLES.length) {
+    throw new Error(`expected ${TABLES.join(", ")}; found: ${found.join(", ") || "none"}. Run npm run db:init`);
+  }
   return found;
 }
 
