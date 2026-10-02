@@ -82,11 +82,16 @@ create table if not exists audit_events (
 );
 create index if not exists audit_events_record on audit_events (record_id, id);
 
--- Append-only. The one exception is "Reset demo", which may remove simulated events.
+-- Append-only. Two exceptions, both for data that was never real: "Reset demo" removes
+-- simulated events, and removing the seeded sample programme removes its pilots' events.
 create or replace function audit_events_append_only() returns trigger
 language plpgsql as $$
 begin
-  if tg_op = 'DELETE' and old.is_simulated then return old; end if;
+  if tg_op = 'DELETE' and (old.is_simulated
+      or exists (select 1 from records r join challenges c on c.id = r.challenge_id
+                  where r.id = old.record_id and r.is_synthetic and c.pr_id like 'SAMPLE-%')) then
+    return old;
+  end if;
   raise exception 'audit_events is append-only';
 end $$;
 drop trigger if exists audit_events_append_only on audit_events;
@@ -135,6 +140,11 @@ create index if not exists evidence_files_record on evidence_files (record_id);
 create or replace function evidence_files_immutable() returns trigger
 language plpgsql as $$
 begin
+  -- The one exception: removing the seeded sample programme (scripts/seed-programme.mjs).
+  if tg_op = 'DELETE' and exists (select 1 from records r join challenges c on c.id = r.challenge_id
+                                   where r.id = old.record_id and r.is_synthetic and c.pr_id like 'SAMPLE-%') then
+    return old;
+  end if;
   raise exception 'evidence_files cannot be changed or removed';
 end $$;
 drop trigger if exists evidence_files_immutable on evidence_files;

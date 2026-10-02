@@ -43,7 +43,8 @@ api/_passport.js            seal (SHA-256), hash-chained audit log, the demo's s
 shared/demo/opd-scenario.json the seeded OPD pilot: 7 roles, 10 states, 16 steps (edit content here)
 scripts/dev.mjs             npm run dev — the pages and api/ locally, like Vercel
 scripts/add-user.mjs        npm run user:add — create a real account (prints a generated password)
-scripts/*.test.mjs          npm test — 29 tests; needs TEST_DATABASE_URL (a scratch database)
+scripts/seed-programme.mjs  npm run seed:programme — the fictional sample programme (11 pilots)
+scripts/*.test.mjs          npm test — 33 tests; needs TEST_DATABASE_URL (a scratch database)
 ```
 
 ## Team
@@ -137,6 +138,25 @@ audit log with the passport in one transaction:
 
 A pilot can also end as a **Learning record** earlier: when no lawful procurement route is open
 (usually because the validator found the criteria missed). The passport's rail stops where it did.
+
+## The sample programme
+
+So the dashboard and pilots list aren't empty on judging day:
+```
+npm run seed:programme                 # 11 fictional pilots, one at every stage
+npm run seed:programme -- --replace    # rebuild it
+npm run seed:programme -- --remove     # take it all out again
+```
+It runs the real actions with the clock set back, so each sample pilot has a genuine seal,
+evidence hashes, quality report, screening, route trace and an intact audit chain spread over
+months, from a draft with quality findings (Beed) to a replicated OPD pilot (Nagpur), with a
+missed result and an unadopted deployment both closing as learning records, one payment paid
+late and one overdue today. Every sample pilot is labelled *Sample pilot — fictional* on its
+passport, tagged *sample* in lists, and counted as such on the dashboard and ledger. They are
+read-only to everyone; demo accounts can read them (and nothing real). Sample accounts have no
+password. Removal is the one exception to the append-only audit log and immutable evidence files,
+and it only reaches records marked synthetic *and* numbered `SAMPLE-`. It calls the quality
+gate's model once per pilot when `LLM_API_KEY` is set; `--no-model` skips that.
 
 ## Phase 3: what each engine does, and what it doesn't
 

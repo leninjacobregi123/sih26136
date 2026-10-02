@@ -12,7 +12,7 @@ export default route(async (req, res) => {
   if (req.method !== "GET") throw new HttpError(405, "GET only");
   const { rows } = await db().query(
     `select c.department, c.district, c.kpi_name, c.kpi_unit, c.baseline_value, c.target_value, c.target_direction,
-            r.passport_state, r.post_value, r.passport->'milestones' as milestones,
+            r.passport_state, r.post_value, (r.is_synthetic and c.pr_id like 'SAMPLE-%') as sample, r.passport->'milestones' as milestones,
             r.passport->'validation'->>'result' as validation, r.passport->'procurement'->'accepted'->>'route' as route,
             r.passport->'adoption'->'latest' as adoption, r.passport->'replication'->>'decision' as replication,
             (select max(at) from audit_events a where a.record_id = r.id) as last_activity
@@ -44,7 +44,7 @@ export default route(async (req, res) => {
     .sort((a, b) => a.department.localeCompare(b.department));
   res.setHeader("Cache-Control", "public, max-age=60");
   return res.status(200).json({
-    as_of: today, sla_days: policy.payment_sla_days, sla_basis: policy.payment_sla_basis, departments,
+    as_of: today, sample_pilots: rows.filter((r) => r.sample).length, sla_days: policy.payment_sla_days, sla_basis: policy.payment_sla_basis, departments,
     dashboard: dashboard(rows),
   });
 });
@@ -84,7 +84,7 @@ function dashboard(rows) {
         now_gain_pct: r.adoption ? gain(r, r.adoption.outcome.now) : null,
         usage_pct: r.adoption?.usage_pct ?? null,
         verdict: r.adoption?.verdict ?? null,
-        state: r.passport_state, route: r.route,
+        state: r.passport_state, route: r.route, sample: r.sample,
       }))
       .sort((a, b) => a.department.localeCompare(b.department) || a.kpi.localeCompare(b.kpi)),
   };

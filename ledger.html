@@ -24,7 +24,8 @@ const out = document.getElementById("out");
 App.user().then(App.nav);
 App.api("/api/programme").then((l) => {
   document.getElementById("basis").textContent =
-    `How promptly departments pay startups for accepted milestones, against a ${l.sla_days}-day payment window. ${l.sla_basis} As of ${l.as_of}. Public; no sign-in; no startup names.`;
+    `How promptly departments pay startups for accepted milestones, against a ${l.sla_days}-day payment window. ${l.sla_basis} As of ${l.as_of}. Public; no sign-in; no startup names.`
+    + (l.sample_pilots ? ` Includes ${l.sample_pilots} fictional sample pilots seeded to show the programme at work.` : "");
   if (!l.departments.length) { out.innerHTML = `<p class="muted">No real pilots yet.</p>`; return; }
   const n = (v) => v ?? "—";
   out.innerHTML = `<div class="scroll"><table><thead><tr><th>Department</th><th>Pilots</th><th>Milestones accepted</th><th>Paid</th>

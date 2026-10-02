@@ -1,6 +1,7 @@
 // Explainable matching: hard filters first, then a score on published weights.
 // No model and no hidden score: every number on the page comes with its reason, every
 // rejection with what would have changed it. The panel decides; this only ranks.
+import { nowIso } from "./_clock.js";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -80,7 +81,7 @@ export function screenAll(challenge, envelope, profiles) {
   const candidates = profiles.map((p) => ({ user_id: p.user_id, name: p.org || p.name, ...screenOne(challenge, envelope, p) }));
   candidates.sort((a, b) => (a.result === "rejected") - (b.result === "rejected") || (b.score ?? -1) - (a.score ?? -1) || a.name.localeCompare(b.name));
   return {
-    ran_at: new Date().toISOString(),
+    ran_at: nowIso(),
     weights: policy.match_weights,
     note: "Ranking is advisory. Hard filters are binding; the panel chooses among the rest.",
     candidates,

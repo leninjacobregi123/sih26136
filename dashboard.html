@@ -24,6 +24,8 @@
   th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
   td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   th { color: var(--muted); font-size: .82rem; }
+  .notice-sample { border: 1px solid var(--ink); padding: .4rem .75rem; font-size: .9rem; }
+  .tag { font-size: .75rem; border: 1px solid var(--muted); color: var(--muted); border-radius: 3px; padding: 0 .3rem; white-space: nowrap; }
   .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
 </style>
 </head>
@@ -38,8 +40,10 @@ const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : "—");
 const signed = (v) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v}%`);
 const VERDICT = { adopted: ["ok", "✓ adopted"], "not adopted": ["bad", "✗ not adopted"], "outcome not held": ["warn", "! outcome not held"] };
 App.user().then(App.nav);
-App.api("/api/programme").then(({ dashboard: d, as_of, sla_days, departments }) => {
+App.api("/api/programme").then(({ dashboard: d, as_of, sla_days, departments, sample_pilots }) => {
   document.getElementById("asof").textContent += ` As of ${as_of}.`;
+  if (sample_pilots) document.getElementById("asof").insertAdjacentHTML("afterend",
+    `<p class="notice-sample"><b>Includes ${sample_pilots} sample pilot${sample_pilots === 1 ? "" : "s"}</b> — fictional data seeded to show the programme at work, marked “sample” below. Not official records.</p>`);
   if (!d.pilots) { out.innerHTML = `<p class="muted">No real pilots yet.</p>`; return; }
   const paid = departments.reduce((a, x) => a + x.paid, 0), onTime = departments.reduce((a, x) => a + x.paid_on_time, 0);
   const tiles = [
@@ -69,7 +73,7 @@ App.api("/api/programme").then(({ dashboard: d, as_of, sla_days, departments }) 
     <div class="scroll"><table><thead><tr><th>Department</th><th>KPI</th><th class="n">Baseline</th><th class="n">Target</th>
       <th class="n">Validated</th><th class="n">Now</th><th class="n">Weekly use</th><th>Adoption</th><th>State</th></tr></thead><tbody>
       ${d.results.map((r) => `<tr><td>${esc(r.department)}${r.district ? `<br><span class="muted">${esc(r.district)}</span>` : ""}</td>
-        <td>${esc(r.kpi)} <span class="muted">(${esc(r.unit)})</span></td>
+        <td>${esc(r.kpi)} <span class="muted">(${esc(r.unit)})</span>${r.sample ? ' <span class="tag">sample</span>' : ""}</td>
         <td class="n">${r.baseline}</td><td class="n">${r.direction === "decrease" ? "≤" : "≥"} ${r.target}</td>
         <td class="n">${r.validated ?? "—"} <span class="muted">${signed(r.validated_gain_pct)}</span></td>
         <td class="n">${r.now ?? "—"} <span class="muted">${r.now != null ? signed(r.now_gain_pct) : ""}</span></td>

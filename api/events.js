@@ -6,6 +6,7 @@ import { db } from "./_lib.js";
 import { route, HttpError } from "./_http.js";
 import { currentUser } from "./_auth.js";
 import { isUuid } from "./_actions.js";
+import { SAMPLE_SQL } from "./_passport.js";
 
 const WINDOW_MS = 9000;
 const POLL_MS = 1500;
@@ -15,11 +16,15 @@ export default route(async (req, res) => {
   const id = req.query.record;
   const { rows: [rec] } = isUuid(id)
     ? await db().query(
-        "select c.is_simulated from records r join challenges c on c.id = r.challenge_id where r.id = $1", [id])
+        `select c.is_simulated, (${SAMPLE_SQL}) as sample from records r join challenges c on c.id = r.challenge_id where r.id = $1`, [id])
     : { rows: [] };
   if (!rec) throw new HttpError(404, "No such passport.");
   // The demo is open to anyone; real passports need an account.
-  if (!rec.is_simulated && !(await currentUser(req))) throw new HttpError(401, "Sign in first.");
+  if (!rec.is_simulated) {
+    const user = await currentUser(req);
+    if (!user) throw new HttpError(401, "Sign in first.");
+    if (user.is_demo && !rec.sample) throw new HttpError(404, "No such passport.");
+  }
 
   let after = Number(req.headers["last-event-id"] ?? req.query.after ?? 0) || 0;
   if (!after) {

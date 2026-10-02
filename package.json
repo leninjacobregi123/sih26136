@@ -7,12 +7,13 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "test": "node --test --test-concurrency=1 scripts/passport.test.mjs scripts/pilot.test.mjs scripts/phase3.test.mjs scripts/phase4.test.mjs",
+    "test": "node --test --test-concurrency=1 scripts/passport.test.mjs scripts/pilot.test.mjs scripts/phase3.test.mjs scripts/phase4.test.mjs scripts/sample.test.mjs",
     "smoke": "node scripts/smoke.mjs",
     "db:init": "node scripts/db-init.mjs",
     "seed": "node scripts/seed-records.mjs",
     "supabase:setup": "node scripts/supabase-setup.mjs",
-    "user:add": "node scripts/add-user.mjs"
+    "user:add": "node scripts/add-user.mjs",
+    "seed:programme": "node scripts/seed-programme.mjs"
   },
   "dependencies": {
     "openai": "^7.23.0",

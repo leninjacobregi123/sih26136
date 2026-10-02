@@ -1,6 +1,7 @@
 // The procurement route compiler and the payment SLA ledger. Both are rule tables, not
 // models: a route is offered only when every one of its conditions holds, and each
 // condition that fails says what fact would have to change.
+import { nowIso } from "./_clock.js";
 import { policy } from "./_matching.js";
 
 // Each condition: the fact it reads, the test, why it fails, and what would make it pass.
@@ -57,7 +58,7 @@ export function compileRoute(facts, p = policy) {
     : null;
 
   return {
-    compiled_at: new Date().toISOString(),
+    compiled_at: nowIso(),
     facts: [
       `Validation: ${f.met ? "met the sealed criteria" : "missed the sealed criteria"}`,
       `Validated winners: ${f.winners}`,

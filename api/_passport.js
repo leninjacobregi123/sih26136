@@ -1,5 +1,6 @@
 // The Pilot Evidence Passport: the seal, the hash-chained audit log, and reading a passport
 // back. Shared by the seeded demo (below) and real pilots (_actions.js).
+import { nowIso } from "./_clock.js";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { db } from "./_lib.js";
@@ -48,7 +49,7 @@ const eventHash = (prev, e) =>
 export async function appendEvent(client, recordId, actor, action, detail, simulated = false) {
   const { rows } = await client.query(
     "select hash from audit_events where record_id = $1 order by id desc limit 1", [recordId]);
-  const e = { record_id: recordId, at: new Date().toISOString(), actor_role: ROLES[actor.role] ?? actor.role,
+  const e = { record_id: recordId, at: nowIso(), actor_role: ROLES[actor.role] ?? actor.role,
     actor_name: actor.name, actor_id: actor.id ?? null, action, detail };
   const prev = rows[0]?.hash ?? null;
   await client.query(
@@ -57,6 +58,9 @@ export async function appendEvent(client, recordId, actor, action, detail, simul
     [recordId, e.at, e.actor_role, e.actor_name, e.actor_id, action, detail, simulated, prev, eventHash(prev, e)],
   );
 }
+
+export const isSample = (rec) => !!rec.is_synthetic && String(rec.pr_id ?? "").startsWith("SAMPLE-");
+export const SAMPLE_SQL = "r.is_synthetic and c.pr_id like 'SAMPLE-%'";
 
 export function verifyChain(events) {
   let prev = null;
@@ -135,6 +139,8 @@ export async function getBundle(recordId) {
   const pick = (fields) => Object.fromEntries(fields.map((f) => [f, rec[f]]));
   return {
     notice: rec.is_simulated ? scenario.notice : null,
+    // A seeded sample pilot (scripts/seed-programme.mjs): fictional, labelled on every page.
+    sample: isSample(rec),
     states: STATES,
     learning_state: LEARNING,
     adoption_threshold_pct: policy.adoption_threshold_pct,
@@ -208,7 +214,7 @@ export const advanceDemo = (user) =>
 
     if (step.op === "seal") {
       const hash = sealHash(rec, passport.criteria);
-      const sealedAt = new Date().toISOString();
+      const sealedAt = nowIso();
       await client.query("update challenges set lock_hash = $1, locked_at = $2 where id = $3",
         [hash, sealedAt, rec.challenge_id]);
       passport.seal = { sha256: hash, sealed_at: sealedAt };
@@ -228,7 +234,7 @@ export const advanceDemo = (user) =>
     for (const [path, value] of Object.entries(step.set ?? {})) setPath(passport, path, value);
     for (const ev of step.evidence ?? []) {
       const item = { milestone: ev.milestone, title: ev.title, source: ev.source,
-        sha256: sha256(ev.content), bytes: Buffer.byteLength(ev.content), submitted_at: new Date().toISOString() };
+        sha256: sha256(ev.content), bytes: Buffer.byteLength(ev.content), submitted_at: nowIso() };
       passport.evidence.push(item);
       (detail.evidence ??= []).push({ title: item.title, sha256: item.sha256 });
     }

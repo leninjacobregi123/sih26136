@@ -1,11 +1,12 @@
 // Real pilots: creating one, and every action that moves its passport forward.
 // Each action names the one role and the states it is allowed in; the server checks
 // both, validates the input, and writes the passport and its audit event in one transaction.
+import { nowIso, todayIso } from "./_clock.js";
 import { db } from "./_lib.js";
 import { HttpError } from "./_http.js";
 import { ROLES } from "./_auth.js";
 import { BASELINE_GATE, CHALLENGE_FIELDS } from "./_lib.js";
-import { STATES, LEARNING, sha256, sealHash, appendEvent, withTx, lockPassport, savePassport } from "./_passport.js";
+import { isSample, STATES, LEARNING, sha256, sealHash, appendEvent, withTx, lockPassport, savePassport } from "./_passport.js";
 import { qualityReport } from "./_quality.js";
 import { screenAll, policy } from "./_matching.js";
 import { compileRoute, addDays } from "./_procurement.js";
@@ -43,7 +44,7 @@ function oneOf(v, name, options) {
   return v;
 }
 export const isUuid = (v) => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayIso;
 const targetText = (c) => `${c.target_direction === "decrease" ? "≤" : "≥"} ${Number(c.target_value)}`;
 
 function milestoneOf(passport, v, states) {
@@ -116,7 +117,7 @@ export const ACTIONS = {
         if (input.quality_ack !== true && input.quality_ack !== "on") {
           throw bad("read the quality report and confirm it before verifying");
         }
-        passport.quality.reviewed = { by: user.name, at: new Date().toISOString(), findings: passport.quality.defects.length };
+        passport.quality.reviewed = { by: user.name, at: nowIso(), findings: passport.quality.defects.length };
       }
       passport.baseline = { verified: true, verified_by: user.name, result };
       return { action: "Verified the baseline", to: "Baseline verified",
@@ -128,7 +129,7 @@ export const ACTIONS = {
     role: "department", states: ["Baseline verified"], label: "Seal and publish the success criteria",
     async run({ client, rec, passport }) {
       const hash = sealHash(rec, passport.criteria);
-      const at = new Date().toISOString();
+      const at = nowIso();
       await client.query("update challenges set lock_hash = $1, locked_at = $2 where id = $3", [hash, at, rec.challenge_id]);
       passport.seal = { sha256: hash, sealed_at: at };
       return { action: "Sealed and published the success criteria", to: "Criteria sealed", detail: { seal: hash } };
@@ -171,7 +172,7 @@ export const ACTIONS = {
         return { user_id: x.user_id, name: shortlist.get(x.user_id), score, note: text(x.note, "note", { max: 500, optional: true }) };
       });
       if (scores.length !== shortlist.size) throw bad("score every startup on the shortlist");
-      const entry = { evaluator: user.name, evaluator_id: user.id, at: new Date().toISOString(), scores,
+      const entry = { evaluator: user.name, evaluator_id: user.id, at: nowIso(), scores,
         dissent: text(input.dissent, "dissent", { max: 1000, optional: true }) };
       passport.evaluation ??= { panel: [] };
       // One entry per evaluator: scoring again replaces your own.
@@ -246,9 +247,9 @@ export const ACTIONS = {
         || `evidence.${FILE_TYPES[mime]}`;
       const hash = sha256(bytes);
       const { rows: [f] } = await client.query(
-        `insert into evidence_files (record_id, milestone, title, filename, mime, bytes, sha256, data, uploaded_by)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id, uploaded_at`,
-        [rec.id, m.n, title, filename, mime, bytes.length, hash, bytes, user.id]);
+        `insert into evidence_files (record_id, milestone, title, filename, mime, bytes, sha256, data, uploaded_by, uploaded_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning id, uploaded_at`,
+        [rec.id, m.n, title, filename, mime, bytes.length, hash, bytes, user.id, nowIso()]);
       passport.evidence.push({ milestone: m.n, title, source: passport.startup.name, sha256: hash,
         bytes: bytes.length, submitted_at: f.uploaded_at.toISOString(), file_id: f.id });
       m.state = "evidence submitted";
@@ -363,7 +364,7 @@ Object.assign(ACTIONS, {
     refuse: [409, "The route is already approved."],
     run({ passport, user }, input) {
       passport.procurement.approved_by = user.name;
-      passport.procurement.approved_at = new Date().toISOString();
+      passport.procurement.approved_at = nowIso();
       passport.procurement.approval_note = text(input.note, "note", { max: 1000, optional: true });
       return { action: `Approved the route: ${passport.procurement.accepted.route}` };
     },
@@ -488,13 +489,15 @@ export async function startupProfiles(client = db()) {
   return rows;
 }
 
-export async function runAction(user, recordId, name, input) {
+// opts.sample: only the seed script, building the fictional sample programme, passes this.
+export async function runAction(user, recordId, name, input, opts = {}) {
   const act = ACTIONS[name];
   if (!act) throw new HttpError(400, `unknown action ${name}`);
   return withTx(async (client) => {
     const rec = isUuid(recordId) && await lockPassport(client, "r.id = $1", [recordId]);
     if (!rec) throw new HttpError(404, "No such passport.");
     if (rec.is_simulated) throw new HttpError(403, "The demo passport moves only through its demo steps.");
+    if (isSample(rec) && !opts.sample) throw new HttpError(403, "Sample pilots are read-only.");
     if (user.is_demo) throw new HttpError(403, "Demo accounts can only act on the demo.");
     if (user.role !== act.role) throw new HttpError(403, `${act.label} is for the ${ROLES[act.role]}.`);
     if (!act.states.includes(rec.passport_state)) {
@@ -517,7 +520,7 @@ export async function runAction(user, recordId, name, input) {
 
 // What this user could do to this passport right now, with the choices a form needs.
 export async function availableActions(user, bundle) {
-  if (!user || user.is_demo || bundle.challenge.is_simulated) return [];
+  if (!user || user.is_demo || bundle.challenge.is_simulated || bundle.sample) return [];
   const { record: rec, passport: p } = bundle;
   const ms = (states) => p.milestones.filter((m) => states.includes(m.state)).map((m) => ({ n: m.n, title: m.title }));
   const out = [];

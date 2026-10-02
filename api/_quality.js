@@ -3,6 +3,7 @@
 //  - the model, given Pranjal's defect taxonomy (shared/defect_taxonomy.json).
 // Findings are advisory, as the taxonomy says: they never block. What the gate requires
 // is a person — the Programme Administrator — reading the report before publication.
+import { nowIso } from "./_clock.js";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { llm } from "./_lib.js";
@@ -94,7 +95,7 @@ export async function qualityReport(c, { useModel = true } = {}) {
   const defects = [...rules, ...found.filter((f) => !seen.has(`${f.code}:${f.field}`))];
   const text = JSON.stringify(Object.fromEntries(NOTICE_FIELDS.map((f) => [f, c[f] ?? null])));
   return {
-    checked_at: new Date().toISOString(),
+    checked_at: nowIso(),
     text_sha256: createHash("sha256").update(text).digest("hex"),
     taxonomy_version: taxonomy.version,
     model, model_error,

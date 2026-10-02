@@ -5,12 +5,13 @@
 import { db } from "./_lib.js";
 import { route, readJson, HttpError } from "./_http.js";
 import { requireUser } from "./_auth.js";
-import { getBundle } from "./_passport.js";
+import { getBundle, SAMPLE_SQL } from "./_passport.js";
 import { runAction, availableActions, isUuid } from "./_actions.js";
 
 async function bundleFor(user, id) {
   const b = isUuid(id) && await getBundle(id);
-  if (!b || b.challenge.is_simulated) throw new HttpError(404, "No such passport.");
+  // Demo accounts are public, so they may read the fictional sample pilots and nothing real.
+  if (!b || b.challenge.is_simulated || (user.is_demo && !b.sample)) throw new HttpError(404, "No such passport.");
   return { ...b, actions: await availableActions(user, b) };
 }
 
@@ -19,11 +20,11 @@ export default route(async (req, res) => {
   if (req.method === "GET") {
     if (req.query.id) return res.status(200).json(await bundleFor(user, req.query.id));
     const { rows } = await db().query(
-      `select r.id, r.passport_state, r.passport->'startup'->>'name' as startup, c.department, c.district,
+      `select r.id, r.passport_state, (${SAMPLE_SQL}) as sample, r.passport->'startup'->>'name' as startup, c.department, c.district,
               c.outcome_statement, c.kpi_name, c.created_at,
               (select max(at) from audit_events a where a.record_id = r.id) as last_activity
          from records r join challenges c on c.id = r.challenge_id
-        where r.passport is not null and not c.is_simulated
+        where r.passport is not null and not c.is_simulated ${user.is_demo ? `and ${SAMPLE_SQL}` : ""}
         order by last_activity desc nulls last
         limit 200`);
     return res.status(200).json({ passports: rows });

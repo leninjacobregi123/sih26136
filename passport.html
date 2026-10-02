@@ -205,7 +205,8 @@ function watchLive() {
 function paint() {
   paintControls();
   const loaded = hasPassport();
-  $("notice").hidden = !DEMO;
+  $("notice").hidden = !DEMO && !data?.sample;
+  if (data?.sample) $("notice").textContent = "Sample pilot — fictional data seeded to show the programme at work. Not an official record.";
   $("empty-state").hidden = !DEMO || loaded;
   $("passport").hidden = !loaded;
   paintActions();
@@ -532,6 +533,7 @@ function paintActions() {
   actionsKey = key;
   if (!acts.length) {
     box.innerHTML = `<h2>Your next action</h2><p class="muted">${!me ? "Sign in to act on this pilot."
+      : data.sample ? "This is a sample pilot: it can be read, not changed."
       : me.is_demo ? "Demo accounts can't act on real pilots."
       : `Nothing for the ${esc(roleLabel(me.role))} to do while the passport is <i>${esc(data.record.passport_state)}</i>. You'll see it here the moment that changes.`}</p>`;
     return;
