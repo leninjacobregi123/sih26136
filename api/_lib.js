@@ -52,7 +52,7 @@ export const CHALLENGE_FIELDS = [
   "baseline_method", "comparison_unit", "duration_days",
 ];
 
-const TABLES = ["audit_events", "challenges", "readings", "records", "signatures"];
+const TABLES = ["audit_events", "challenges", "evidence_files", "readings", "records", "signatures", "startup_profiles", "users"];
 
 export async function checkDb() {
   const { rows } = await db().query(

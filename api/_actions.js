@@ -6,6 +6,9 @@ import { HttpError } from "./_http.js";
 import { ROLES } from "./_auth.js";
 import { BASELINE_GATE, CHALLENGE_FIELDS } from "./_lib.js";
 import { STATES, sha256, sealHash, appendEvent, withTx, lockPassport, savePassport } from "./_passport.js";
+import { qualityReport } from "./_quality.js";
+import { screenAll, policy } from "./_matching.js";
+import { compileRoute, addDays } from "./_procurement.js";
 
 export const MAX_FILE_BYTES = 3 * 1024 * 1024; // base64 of this still fits Vercel's 4.5 MB body limit
 export const FILE_TYPES = {
@@ -52,7 +55,7 @@ function milestoneOf(passport, v, states) {
 
 // ---- creating a pilot ------------------------------------------------------
 
-export async function createChallenge(user, body) {
+function validateChallenge(user, body) {
   if (user.is_demo || user.role !== "department") throw new HttpError(403, "Only a Department Officer can create a challenge.");
   const v = {};
   for (const f of CHALLENGE_FIELDS) v[f] = typeof body[f] === "number" ? String(body[f]) : text(body[f], f, { optional: true });
@@ -66,7 +69,17 @@ export async function createChallenge(user, body) {
   if (v.target_direction === "decrease" ? v.target_value >= v.baseline_value : v.target_value <= v.baseline_value) {
     throw bad(`a target to ${v.target_direction} must be ${v.target_direction === "decrease" ? "below" : "above"} the baseline`);
   }
+  return v;
+}
 
+// The composer's "Check quality" button: the same report, nothing saved.
+export async function checkChallenge(user, body) {
+  return qualityReport(validateChallenge(user, body));
+}
+
+export async function createChallenge(user, body) {
+  const v = validateChallenge(user, body);
+  const quality = await qualityReport(v); // outside the transaction: it may call the model
   return withTx(async (client) => {
     const fields = [...CHALLENGE_FIELDS, "target_value", "target_direction"];
     const ch = await client.query(
@@ -76,6 +89,7 @@ export async function createChallenge(user, body) {
     const passport = {
       identity: { owner: [user.name, user.org].filter(Boolean).join(", "), created_by: user.name },
       baseline: { verified: false },
+      quality,
       criteria: [{ kpi: v.kpi_name, unit: v.kpi_unit ?? "", baseline: v.baseline_value, target: targetText(v) }],
       seal: null, risk: null, screening: null, evaluation: null, startup: null, design: null,
       milestones: [], evidence: [], validation: null,
@@ -84,7 +98,8 @@ export async function createChallenge(user, body) {
     const rec = await client.query(
       `insert into records (challenge_id, status, is_synthetic, passport_state, passport)
        values ($1, 'running', false, $2, $3) returning id`, [ch.rows[0].id, STATES[0], passport]);
-    await appendEvent(client, rec.rows[0].id, user, "Created the challenge", { state: STATES[0] });
+    await appendEvent(client, rec.rows[0].id, user, "Created the challenge",
+      { state: STATES[0], quality_findings: quality.defects.length, quality_model: quality.model ?? "not run" });
     return { id: ch.rows[0].id, record_id: rec.rows[0].id };
   });
 }
@@ -96,8 +111,16 @@ export const ACTIONS = {
   verify_baseline: {
     role: "admin", states: ["Draft"], label: "Verify the baseline",
     run({ passport, user }, input) {
-      passport.baseline = { verified: true, verified_by: user.name, result: text(input.result, "result") };
-      return { action: "Verified the baseline", to: "Baseline verified" };
+      const result = text(input.result, "result");
+      if (passport.quality) {
+        if (input.quality_ack !== true && input.quality_ack !== "on") {
+          throw bad("read the quality report and confirm it before verifying");
+        }
+        passport.quality.reviewed = { by: user.name, at: new Date().toISOString(), findings: passport.quality.defects.length };
+      }
+      passport.baseline = { verified: true, verified_by: user.name, result };
+      return { action: "Verified the baseline", to: "Baseline verified",
+        detail: passport.quality ? { quality_reviewed: passport.quality.defects.length } : undefined };
     },
   },
 
@@ -112,14 +135,67 @@ export const ACTIONS = {
     },
   },
 
+  screen: {
+    role: "admin", states: ["Criteria sealed"], label: "Set the risk envelope and screen startups",
+    async run({ client, rec, passport }, input) {
+      const envelope = {
+        users: text(input.users, "users", { max: 300 }),
+        systems: text(input.systems, "systems", { max: 300 }),
+        allow_write: input.allow_write === true || input.allow_write === "yes",
+        data_class: oneOf(input.data_class, "data class", ["none", "pseudonymised", "personal"]),
+        reversibility: text(input.reversibility, "reversibility", { max: 300 }),
+        exit_cost: text(input.exit_cost, "exit cost", { max: 300, optional: true }),
+        cap_inr: num(input.cap_inr, "cap", { min: 0 }),
+        start_date: date(input.start_date, "planned start"),
+      };
+      passport.risk = { ...envelope, data: `${envelope.data_class} data`,
+        relaxation: "GFR 173(i) waivers apply to DPIIT-recognised startups within this cap" };
+      passport.screening = screenAll(rec, envelope, await startupProfiles(client));
+      passport.evaluation = null; // a new screen means a new panel round
+      const c = passport.screening.candidates;
+      return { action: "Set the risk envelope and screened startups",
+        detail: { screened: c.length, eligible: c.filter((x) => x.result !== "rejected").length } };
+    },
+  },
+
+  score: {
+    role: "evaluator", states: ["Criteria sealed"], label: "Score the shortlist",
+    allowed: (rec) => !!rec.passport.screening?.candidates.some((c) => c.result !== "rejected"),
+    refuse: [409, "Nobody is on the shortlist yet: the Programme Administrator screens startups first."],
+    run({ passport, user }, input) {
+      const shortlist = new Map(passport.screening.candidates.filter((c) => c.result !== "rejected").map((c) => [c.user_id, c.name]));
+      const scores = (Array.isArray(input.scores) ? input.scores : []).map((x) => {
+        if (!shortlist.has(x?.user_id)) throw bad("score only startups on the shortlist");
+        const score = num(x.score, `score for ${shortlist.get(x.user_id)}`, { min: 0 });
+        if (score > 100 || !Number.isInteger(score)) throw bad("scores are whole numbers from 0 to 100");
+        return { user_id: x.user_id, name: shortlist.get(x.user_id), score, note: text(x.note, "note", { max: 500, optional: true }) };
+      });
+      if (scores.length !== shortlist.size) throw bad("score every startup on the shortlist");
+      const entry = { evaluator: user.name, evaluator_id: user.id, at: new Date().toISOString(), scores,
+        dissent: text(input.dissent, "dissent", { max: 1000, optional: true }) };
+      passport.evaluation ??= { panel: [] };
+      // One entry per evaluator: scoring again replaces your own.
+      passport.evaluation.panel = [...passport.evaluation.panel.filter((e) => e.evaluator_id !== user.id), entry];
+      return { action: "Scored the shortlist", detail: { scores: scores.map((x) => ({ name: x.name, score: x.score })) } };
+    },
+  },
+
   award: {
     role: "admin", states: ["Criteria sealed"], label: "Award the pilot",
+    allowed: (rec) => !!rec.passport.screening,
+    refuse: [409, "Screen startups before awarding: the hard filters decide who may be chosen."],
     async run({ client, passport }, input) {
       if (!isUuid(input.startup_user_id)) throw bad("choose a startup account");
       const { rows: [startup] } = await client.query(
         "select id, name, org from users where id = $1 and role = 'startup' and active and not is_demo",
         [input.startup_user_id]);
       if (!startup) throw bad("choose a startup account");
+      // The hard filters bind: a startup screened out cannot be awarded.
+      const screened = passport.screening.candidates.find((c) => c.user_id === startup.id);
+      if (!screened) throw new HttpError(409, `${startup.org || startup.name} was not part of the screening. Screen again first.`);
+      if (screened.result === "rejected") {
+        throw new HttpError(409, `${screened.name} was rejected at screening: ${screened.hard.filter((h) => !h.pass && !h.soft).map((h) => h.why).join(" ")}`);
+      }
       const ms = Array.isArray(input.milestones) ? input.milestones : [];
       if (ms.length < 1 || ms.length > 8) throw bad("a pilot needs 1 to 8 milestones");
       passport.milestones = ms.map((m, i) => ({
@@ -132,7 +208,17 @@ export const ACTIONS = {
         state: "planned",
         payment: { state: "not due" },
       }));
-      passport.startup = { name: startup.org || startup.name, contact: startup.name, user_id: startup.id };
+      const panel = passport.evaluation?.panel ?? [];
+      const mine = panel.flatMap((e) => e.scores.filter((x) => x.user_id === startup.id).map((x) => x.score));
+      const { rows: [prof] } = await client.query("select * from startup_profiles where user_id = $1", [startup.id]);
+      passport.startup = {
+        name: startup.org || startup.name, contact: startup.name, user_id: startup.id,
+        match_score: screened.score, terms: screened.result,
+        panel_average: mine.length ? Math.round(mine.reduce((a, b) => a + b, 0) / mine.length) : null,
+        verification: prof && { dpiit: prof.dpiit_recognised ? `Recognised${prof.dpiit_number ? ` (${prof.dpiit_number})` : ""} · self-declared` : "Not recognised",
+          udyam: prof.udyam_registered ? "Registered · self-declared" : "Not registered" },
+        capability: prof?.capabilities || undefined, prior_evidence: prof?.prior_evidence || undefined,
+      };
       passport.design = {
         scope: text(input.scope, "scope", { max: 500 }),
         data_access: text(input.data_access, "data access", { max: 500 }),
@@ -147,6 +233,7 @@ export const ACTIONS = {
   upload_evidence: {
     role: "startup", states: ["Pilot active"], label: "Submit evidence",
     allowed: (rec, user) => rec.startup_user_id === user.id,
+    refuse: [403, "This pilot was not awarded to you."],
     async run({ client, rec, passport, user }, input) {
       const m = milestoneOf(passport, input.milestone, ["planned", "evidence submitted", "returned"]);
       const title = text(input.title, "title", { max: 200 });
@@ -183,7 +270,8 @@ export const ACTIONS = {
       m.state = "accepted";
       m.accepted_on = today();
       if (note) m.acceptance_note = note;
-      m.payment = { state: "packet complete", packet_complete_on: today() };
+      m.payment = { state: "packet complete", packet_complete_on: today(), expected_by: addDays(today(), policy.payment_sla_days),
+        sla_days: policy.payment_sla_days };
       const all = passport.milestones.every((x) => x.state === "accepted");
       return { action: `Accepted milestone ${m.n}`, to: all ? "Evidence submitted" : undefined };
     },
@@ -201,7 +289,11 @@ export const ACTIONS = {
       }
       const paidOn = date(input.paid_on, "paid on");
       if (paidOn < m.payment.packet_complete_on) throw bad("paid on can't be before the packet was complete");
-      m.payment = { ...m.payment, state: m.payment.state === "delayed" ? "paid late" : "paid", paid_on: paidOn };
+      if (paidOn > today()) throw bad("paid on can't be in the future");
+      const late = m.payment.expected_by && paidOn > m.payment.expected_by
+        ? Math.round((Date.parse(paidOn) - Date.parse(m.payment.expected_by)) / 86400000) : 0;
+      m.payment = { ...m.payment, state: late || m.payment.state === "delayed" ? "paid late" : "paid", paid_on: paidOn,
+        ...(late && { delay_days: late }) };
       return { action: `Paid milestone ${m.n}`, detail: { paid_on: paidOn, amount_inr: m.amount_inr } };
     },
   },
@@ -242,6 +334,52 @@ export const ACTIONS = {
   },
 };
 
+Object.assign(ACTIONS, {
+  compile_route: {
+    role: "finance", states: ["Independently validated"], label: "Compile the procurement route",
+    allowed: (rec) => !rec.passport.procurement,
+    refuse: [409, "The route is already compiled."],
+    async run({ client, rec, passport }, input) {
+      const yes = (v, name) => oneOf(v, name, ["yes", "no"]) === "yes";
+      const { rows: [prof] } = await client.query("select dpiit_recognised, gem_ratings from startup_profiles where user_id = $1",
+        [rec.startup_user_id]);
+      const met = !!passport.validation?.kpis?.length && passport.validation.kpis.every((k) => k.met);
+      passport.procurement = compileRoute({
+        met, winners: met ? 1 : 0,
+        same_department: yes(input.same_department, "same department"),
+        scale_up: yes(input.scale_up, "scale-up"),
+        dpiit: !!prof?.dpiit_recognised, gem_ratings: prof?.gem_ratings ?? 0,
+      });
+      const p = passport.procurement;
+      return p.accepted
+        ? { action: `Compiled the procurement route: ${p.accepted.route}`, to: "Procurement-ready", detail: { route: p.accepted.route } }
+        : { action: "Compiled the procurement route: no lawful route (learning record)", detail: { learning_record: true } };
+    },
+  },
+
+  approve_route: {
+    role: "department", states: ["Procurement-ready"], label: "Approve the procurement route",
+    allowed: (rec) => !rec.passport.procurement?.approved_by,
+    refuse: [409, "The route is already approved."],
+    run({ passport, user }, input) {
+      passport.procurement.approved_by = user.name;
+      passport.procurement.approved_at = new Date().toISOString();
+      passport.procurement.approval_note = text(input.note, "note", { max: 1000, optional: true });
+      return { action: `Approved the route: ${passport.procurement.accepted.route}` };
+    },
+  },
+});
+
+export async function startupProfiles(client = db()) {
+  const { rows } = await client.query(
+    `select u.id as user_id, u.name, u.org, sp.user_id is not null as has_profile,
+            sp.dpiit_recognised, sp.sectors, sp.districts, sp.capabilities, sp.needs_write_access, sp.data_needed,
+            sp.prior_deployments, sp.prior_evidence, sp.gem_ratings, sp.available_from::text as available_from
+       from users u left join startup_profiles sp on sp.user_id = u.id
+      where u.role = 'startup' and u.active and not u.is_demo order by coalesce(u.org, u.name)`);
+  return rows;
+}
+
 export async function runAction(user, recordId, name, input) {
   const act = ACTIONS[name];
   if (!act) throw new HttpError(400, `unknown action ${name}`);
@@ -254,7 +392,7 @@ export async function runAction(user, recordId, name, input) {
     if (!act.states.includes(rec.passport_state)) {
       throw new HttpError(409, `Can't ${act.label.toLowerCase()} while the passport is ${rec.passport_state}.`);
     }
-    if (act.allowed && !act.allowed(rec, user)) throw new HttpError(403, "This pilot was not awarded to you.");
+    if (act.allowed && !act.allowed(rec, user)) throw new HttpError(...act.refuse);
 
     const out = await act.run({ client, rec, user, passport: rec.passport }, input ?? {});
     if (out.refused) {
@@ -277,13 +415,21 @@ export async function availableActions(user, bundle) {
   const out = [];
   for (const [name, act] of Object.entries(ACTIONS)) {
     if (act.role !== user.role || !act.states.includes(rec.passport_state)) continue;
-    if (act.allowed && !act.allowed(rec, user)) continue;
+    if (act.allowed && !act.allowed({ ...rec, passport: p }, user)) continue;
     const a = { name, label: act.label };
     if (name === "award") {
-      const { rows } = await db().query(
-        "select id, name, org from users where role = 'startup' and active and not is_demo order by coalesce(org, name)");
-      a.startups = rows;
+      const avg = (id) => { const s = (p.evaluation?.panel ?? []).flatMap((e) => e.scores.filter((x) => x.user_id === id).map((x) => x.score));
+        return s.length ? Math.round(s.reduce((x, y) => x + y, 0) / s.length) : null; };
+      a.startups = p.screening.candidates.filter((c) => c.result !== "rejected")
+        .map((c) => ({ id: c.user_id, name: c.name, score: c.score, terms: c.result, panel: avg(c.user_id) }));
+      if (!a.startups.length) continue;
     }
+    if (name === "score") {
+      const mine = p.evaluation?.panel?.find((e) => e.evaluator_id === user.id);
+      a.shortlist = p.screening.candidates.filter((c) => c.result !== "rejected").map((c) => ({ id: c.user_id, name: c.name, score: c.score,
+        mine: mine?.scores.find((x) => x.user_id === c.user_id) ?? null }));
+    }
+    if (name === "verify_baseline") a.quality = p.quality ?? null;
     if (name === "upload_evidence") a.milestones = ms(["planned", "evidence submitted", "returned"]);
     if (name === "review_milestone") a.milestones = ms(["evidence submitted"]);
     if (name === "record_payment") {

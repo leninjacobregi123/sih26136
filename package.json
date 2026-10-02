@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "test": "node --test --test-concurrency=1 scripts/passport.test.mjs scripts/pilot.test.mjs",
+    "test": "node --test --test-concurrency=1 scripts/passport.test.mjs scripts/pilot.test.mjs scripts/phase3.test.mjs",
     "smoke": "node scripts/smoke.mjs",
     "db:init": "node scripts/db-init.mjs",
     "seed": "node scripts/seed-records.mjs",

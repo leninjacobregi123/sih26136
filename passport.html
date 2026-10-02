@@ -27,6 +27,8 @@
   .actions button { margin-top: .8rem; }
   .ms-row { display: grid; grid-template-columns: 2fr 2fr minmax(9.5rem, 1fr) minmax(6rem, 1fr); gap: .4rem; margin-top: .4rem; }
   .ms-row input { min-width: 0; }
+  .score-row { display: grid; grid-template-columns: 1fr 1.5fr; gap: .4rem; align-items: end; }
+  .score-row label { margin-top: .4rem; }
   @media (max-width: 40rem) { .ms-row { grid-template-columns: 1fr 1fr; padding-bottom: .5rem; border-bottom: 1px dashed var(--line); } }
   #next { margin-top: .6rem; background: var(--soft); padding: .6rem .75rem; border-left: 3px solid var(--ink); }
   #next p { margin: .2rem 0 0; color: var(--muted); }
@@ -56,6 +58,9 @@
   code { font: .8rem ui-monospace, monospace; overflow-wrap: anywhere; }
   .why { color: var(--muted); font-size: .86rem; }
   ul.plain { margin: .25rem 0; padding-left: 1.1rem; }
+  details.cand { border-top: 1px solid var(--line); padding: .4rem 0; }
+  details.cand summary { cursor: pointer; }
+  details.cand table { margin: .4rem 0; }
   ol.audit { list-style: none; padding: 0; margin: 0; }
   ol.audit li { border-left: 2px solid var(--ink); padding: 0 0 .8rem .8rem; position: relative; }
   ol.audit li::before { content: ""; position: absolute; left: -6px; top: .35rem; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid var(--ink); }
@@ -159,6 +164,8 @@ $("reset").onclick = () => act(async () => { await demoSession(); return post({ 
 $("advance").onclick = () => act(() => post({ action: "advance" }), () => `Done: ${data.audit.at(-1)?.action}.`);
 $("to-audit").onclick = () => $("audit").scrollIntoView({ behavior: "smooth" });
 $("print").onclick = () => window.print();
+// Closed <details> don't print their contents: open every screening breakdown first.
+addEventListener("beforeprint", () => document.querySelectorAll("details").forEach((d) => (d.open = true)));
 
 function paintControls() {
   $("acting").innerHTML = me ? `Acting as <b>${esc(roleLabel(me.role))}</b>${me.is_demo ? " (demo)" : ""}`
@@ -247,6 +254,42 @@ const table = (head, rows) => `<div class="scroll"><table><thead><tr>${head.map(
   <tbody>${rows.map((cells) => `<tr>${cells.map((x) => `<td>${x}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 const tone = (s) => /paid$|accepted|met|eligible|verified/i.test(s) ? "ok" : /delayed|late|standard/i.test(s) ? "warn" : /rejected|missed|disputed/i.test(s) ? "bad" : "muted";
 
+const FIELD = { outcome_statement: "Problem", kpi_name: "KPI", kpi_unit: "KPI unit", kpi_definition: "KPI definition",
+  baseline_value: "Baseline", baseline_window: "Baseline window", baseline_source: "Baseline source", baseline_method: "Baseline method",
+  comparison_unit: "Comparison unit", duration_days: "Duration", target_value: "Target", target_direction: "Target direction" };
+function quality(q) {
+  if (!q) return "";
+  const head = `<p style="margin:.7rem 0 .2rem"><b>Quality gate</b> — ${q.defects.length ? `${q.defects.length} advisory finding${q.defects.length > 1 ? "s" : ""}` : "no findings"}
+    <span class="why">· rules${q.model ? ` + ${esc(q.model)}` : ` only (model not run${q.model_error ? `: ${esc(q.model_error)}` : ""})`} · taxonomy v${esc(q.taxonomy_version)}</span></p>`;
+  const list = q.defects.length ? `<ul class="plain">${q.defects.map((d) => `<li><b>${esc(d.label)}</b> <span class="why">(${esc(FIELD[d.field] ?? d.field)}, ${d.source === "model" ? "model" : "rule"})</span>
+    ${d.span ? `“${esc(d.span)}” — ` : ""}${esc(d.why)}</li>`).join("")}</ul>` : "";
+  const rev = q.reviewed ? `<p class="why ok">✓ Reviewed by ${esc(q.reviewed.by)} before publication · ${when(q.reviewed.at)}</p>`
+    : `<p class="why">Not yet reviewed. The Programme Administrator confirms it when verifying the baseline. Findings are advisory; they never block.</p>`;
+  return head + list + rev;
+}
+function screening(sc) {
+  return `<p class="why"><b>Screening</b> · ${esc(sc.note)} Weights: outcome fit ${sc.weights.outcome_fit} · evidence ${sc.weights.evidence} · data risk ${sc.weights.data_risk} · delivery ${sc.weights.delivery}.</p>`
+    + (sc.candidates.length ? sc.candidates.map((c) => {
+      const failed = c.hard.filter((h) => !h.pass);
+      return `<details class="cand"><summary><b>${esc(c.name)}</b> · <span class="${tone(c.result)}">${esc(c.result)}</span>${c.score != null ? ` · <b>${c.score}</b> / 100` : ""}
+        <span class="why">${esc(failed.length ? failed[0].why : c.components.map((x) => `${x.name} ${x.points}`).join(" · "))}</span></summary>
+        ${table(["Check", "", "Why", "Would change if"], c.hard.map((h) => [esc(h.rule), h.pass ? `<span class="ok">✓</span>` : `<span class="${h.soft ? "warn" : "bad"}">${h.soft ? "!" : "✗"}</span>`, `<span class="why">${esc(h.why)}</span>`, `<span class="why">${esc(h.counterfactual ?? "")}</span>`]))}
+        ${c.components.length ? table(["Component", "Points", "Why"], c.components.map((x) => [esc(x.name), `${x.points} / ${x.weight}`, `<span class="why">${esc(x.why)}</span>`])) : ""}
+      </details>`; }).join("") : `<p class="muted">No startup accounts to screen.</p>`);
+}
+function panel(entries) {
+  if (!entries.length) return "";
+  // Keyed by account, not name: two startups can share a name.
+  const ids = [...new Map(entries.flatMap((e) => e.scores.map((x) => [x.user_id, x.name]))).entries()];
+  return `<p class="why" style="margin-top:.6rem"><b>Panel scores</b> — each evaluator scored independently; the award is the Programme Administrator's, on the record.</p>`
+    + table(["Startup", ...entries.map((e) => esc(e.evaluator)), "Average"], ids.map(([id, n]) => {
+      const xs = entries.map((e) => e.scores.find((x) => x.user_id === id));
+      const nums = xs.filter(Boolean).map((x) => x.score);
+      return [esc(n), ...xs.map((x) => x ? `${x.score}${x.note ? `<br><span class="why">${esc(x.note)}</span>` : ""}` : ""), nums.length ? `<b>${Math.round(nums.reduce((a, b) => a + b, 0) / nums.length)}</b>` : ""];
+    }))
+    + entries.filter((e) => e.dissent).map((e) => `<p class="why">Dissent (${esc(e.evaluator)}): ${esc(e.dissent)}</p>`).join("");
+}
+
 // [number, title, state that fills it, render(passport, challenge, record) -> html or "", full width]
 const SECTIONS = [
   [1, "Challenge identity", "Draft", (p, c, r) => dl([
@@ -254,7 +297,7 @@ const SECTIONS = [
     ["Problem", esc(c.outcome_statement)], ["Owner", esc(p.identity?.owner)],
     ["Affected", esc(p.identity?.affected_population)], ["Indicative budget", inr(p.identity?.indicative_budget_inr)],
     ["Status", `<b>${esc(r.passport_state)}</b>`],
-  ])],
+  ]) + quality(p.quality)],
   [2, "Baseline", "Draft", (p, c) => dl([
     ["Measure", `${esc(c.kpi_name)} (${esc(c.kpi_unit)})`], ["Definition", esc(c.kpi_definition)],
     ["Baseline", `<b>${esc(Number(c.baseline_value))} ${esc(c.kpi_unit)}</b> · ${esc(c.baseline_window)}`],
@@ -267,16 +310,21 @@ const SECTIONS = [
   [4, "Risk envelope", "Criteria sealed", (p) => p.risk && dl([
     ["Users", esc(p.risk.users)], ["Systems", esc(p.risk.systems)], ["Data", esc(p.risk.data)],
     ["Reversibility", esc(p.risk.reversibility)], ["Exit cost", esc(p.risk.exit_cost)],
-    ["Total cap", inr(p.risk.cap_inr)], ["Relaxation", esc(p.risk.relaxation)],
+    ["Write access", p.risk.allow_write === undefined ? "" : p.risk.allow_write ? "Allowed" : "Not allowed (read-only)"],
+    ["Planned start", date(p.risk.start_date)], ["Total cap", inr(p.risk.cap_inr)], ["Relaxation", esc(p.risk.relaxation)],
   ])],
   [5, "Startup", "Pilot active", (p) => !p.screening && !p.startup ? "" :
-    (p.screening ? `<p class="why"><b>Screening</b> — every result carries its reason.</p>`
+    (Array.isArray(p.screening) ? `<p class="why"><b>Screening</b> — every result carries its reason.</p>`
       + table(["Applicant", "Result", "Why"], p.screening.map((s) => [esc(s.name), `<span class="${tone(s.result)}">${esc(s.result)}</span>`, `<span class="why">${esc(s.why)}</span>`])) : "")
-    + (p.evaluation ? `<p class="why" style="margin-top:.6rem"><b>Panel scores</b> — ${esc(p.evaluation.weights)}</p>`
+    + (p.screening?.candidates ? screening(p.screening) : "")
+    + (p.evaluation?.scores ? `<p class="why" style="margin-top:.6rem"><b>Panel scores</b> — ${esc(p.evaluation.weights)}</p>`
       + table(["Startup", "Score", "Reason"], p.evaluation.scores.map((s) => [esc(s.name), `<b>${s.total}</b>`, `<span class="why">${esc(s.why)}</span>`]))
       + `<p class="why">Dissent: ${esc(p.evaluation.dissent)}</p>` : "")
+    + (p.evaluation?.panel ? panel(p.evaluation.panel) : "")
     + (p.startup ? `<p style="margin:.6rem 0 .3rem"><b>Selected: ${esc(p.startup.name)}</b>${p.startup.location ? `, ${esc(p.startup.location)}` : ""}${p.startup.first_government_supplier ? " · first government supplier" : ""}</p>`
-      + dl([["Contact", esc(p.startup.contact)], ["DPIIT", esc(p.startup.verification?.dpiit)], ["Udyam", esc(p.startup.verification?.udyam)],
+      + dl([["Contact", esc(p.startup.contact)], ["Match score", p.startup.match_score != null ? `${p.startup.match_score} / 100 · ${esc(p.startup.terms)}` : ""],
+            ["Panel average", p.startup.panel_average != null ? `${p.startup.panel_average} / 100` : ""],
+            ["DPIIT", esc(p.startup.verification?.dpiit)], ["Udyam", esc(p.startup.verification?.udyam)],
             ["GST", esc(p.startup.verification?.gst)], ["Capability", esc(p.startup.capability)], ["Prior evidence", esc(p.startup.prior_evidence)]]) : ""), true],
   [6, "Pilot design", "Pilot active", (p) => p.design && dl([
     ["Scope", esc(p.design.scope)], ["Sandbox", esc(p.design.sandbox)], ["Data access", esc(p.design.data_access)],
@@ -297,17 +345,22 @@ const SECTIONS = [
           ["Weekly median", data.readings.map((x) => esc(Number(x.kpi_value))).join(" → ")],
           ["Attested by", data.signatures.map((s) => `${esc(s.signer_name)}, ${esc(s.signer_role)} · ${when(s.signed_at)}${s.dissent_note ? ` · dissent: ${esc(s.dissent_note)}` : ""}`).join("<br>")]])), true],
   [10, "Payment trace", "Pilot active", (p) => p.milestones.some((m) => m.payment.state !== "not due") && (
-    table(["#", "Amount", "Payment", "Packet complete", "Expected by", "Paid on", "Delay"],
-      p.milestones.map((m) => { const y = m.payment; return [m.n, inr(m.amount_inr), `<span class="${tone(y.state)}">${esc(y.state)}</span>`,
+    table(["#", "Amount", "Payment", "Against SLA", "Packet complete", "Expected by", "Paid on", "Delay"],
+      p.milestones.map((m, i) => { const y = m.payment, l = data.ledger?.[i];
+        return [m.n, inr(m.amount_inr), `<span class="${tone(y.state)}">${esc(y.state)}</span>`,
+        l && l.status !== "not due" ? `<span class="${{ "paid on time": "ok", "on track": "muted", overdue: "bad", "paid late": "warn" }[l.status]}">${esc(l.label)}</span>`
+          + (l.grievance ? `<br><span class="why">Grievance open since ${date(l.grievance.opened_on)}; response due ${date(l.grievance.response_due)}${l.reason ? "" : " · no reason recorded"}</span>` : "") : "",
         date(y.packet_complete_on), date(y.expected_by), date(y.paid_on),
         y.delay_reason ? `<span class="why">${y.delay_days ? `${y.delay_days} days · ` : ""}${esc(y.delay_reason)}${y.grievance_clock ? ` · grievance ${esc(y.grievance_clock)}` : ""}</span>` : ""]; }))
-    + `<p class="why">Paid ${inr(p.milestones.filter((m) => /paid/.test(m.payment.state)).reduce((a, m) => a + m.amount_inr, 0))} of ${inr(p.milestones.reduce((a, m) => a + m.amount_inr, 0))}. ${DEMO ? "Scenario dates; no" : "Recorded by the Finance / Procurement Officer; no"} treasury or PFMS link.</p>`), true],
+    + `<p class="why">Paid ${inr(p.milestones.filter((m) => /paid/.test(m.payment.state)).reduce((a, m) => a + m.amount_inr, 0))} of ${inr(p.milestones.reduce((a, m) => a + m.amount_inr, 0))}. ${DEMO ? "Scenario dates; no" : `Payment is due ${esc(p.milestones.find((m) => m.payment.sla_days)?.payment.sla_days ?? "")} days after a milestone is accepted (programme policy). Recorded by the Finance / Procurement Officer; no`} treasury or PFMS link.</p>`), true],
   [11, "Procurement", "Procurement-ready", (p) => p.procurement && (
     `<p class="why"><b>Facts</b></p><ul class="plain">${p.procurement.facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>`
-    + `<p><b class="ok">Accepted: ${esc(p.procurement.accepted.route)}</b><br><span class="why">${esc(p.procurement.accepted.basis)} ${esc(p.procurement.accepted.next)}</span></p>`
-    + p.procurement.rejected.map((x) => `<p><b class="bad">Rejected: ${esc(x.route)}</b><br><span class="why">${esc(x.why)}</span></p>`).join("")
-    + `<p><b>Counterfactual:</b> ${esc(p.procurement.counterfactual)}</p>`
-    + dl([["Approvals", p.procurement.approvals.map(esc).join("<br>")], ["Approved by", esc(p.procurement.approved_by) || `<span class="muted">Awaiting route approval</span>`]])), true],
+    + (p.procurement.accepted ? `<p><b class="ok">Accepted: ${esc(p.procurement.accepted.route)}</b><br><span class="why">${esc(p.procurement.accepted.basis)} ${esc(p.procurement.accepted.next)}</span></p>`
+      : `<p><b class="bad">${esc(p.procurement.outcome)}</b></p>`)
+    + p.procurement.rejected.map((x) => `<p><b class="bad">Rejected: ${esc(x.route)}</b><br><span class="why">${esc(x.why)}</span>${x.counterfactual ? `<br><span class="why"><b>Would change if:</b> ${esc(x.counterfactual)}</span>` : ""}</p>`).join("")
+    + (p.procurement.counterfactual ? `<p><b>Counterfactual:</b> ${esc(p.procurement.counterfactual)}</p>` : "")
+    + (p.procurement.accepted ? dl([["Approvals", p.procurement.approvals.map(esc).join("<br>")],
+        ["Approved by", p.procurement.approved_by ? `${esc(p.procurement.approved_by)}${p.procurement.approved_at ? ` · ${when(p.procurement.approved_at)}` : ""}${p.procurement.approval_note ? ` — ${esc(p.procurement.approval_note)}` : ""}` : `<span class="muted">Awaiting route approval</span>`]]) : "")), true],
   [12, "Deployment & adoption", "Deployed", (p) => p.deployment && dl([
     ["Order", esc(p.deployment.order)], ["Sites", esc(p.deployment.sites)], ["Go-live", esc(p.deployment.go_live)],
     ["Annual cost", inr(p.deployment.annual_cost_inr)],
@@ -335,12 +388,44 @@ const msRow = () => `<div class="ms-row"><input data-k="title" placeholder="Mile
   <input data-k="due" type="date" aria-label="Due date" required><input data-k="amount_inr" inputmode="numeric" placeholder="₹ amount" aria-label="Amount in rupees" required></div>`;
 
 const FORMS = {
-  verify_baseline: () => `<p class="why">Re-derive the baseline from its source before anything is published. Nothing can be sealed until this is done.</p>
+  verify_baseline: (a) => `<p class="why">Re-derive the baseline from its source before anything is published. Nothing can be sealed until this is done.</p>
     <label>What you checked, and what you found * <textarea name="result" rows="2" required></textarea></label>
+    ${a.quality ? `<div style="margin-top:.6rem">${quality(a.quality)}</div>
+      <label class="choice"><label><input type="checkbox" name="quality_ack" required> I have read the quality report (${a.quality.defects.length} finding${a.quality.defects.length === 1 ? "" : "s"}) and the notice can be published as it stands.</label></label>` : ""}
     <button class="primary">Mark the baseline verified</button>`,
   seal: () => `<p class="why">This hashes the baseline, target and KPI with SHA-256 and publishes the hash. Change any of them afterwards and the seal breaks — the validator will refuse to attest.</p>
     <button class="primary">Seal and publish</button>`,
-  award: (a) => a.startups.length ? `<label>Startup <select name="startup_user_id" required>${a.startups.map((u) => `<option value="${u.id}">${esc(u.org || u.name)}${u.org ? ` (${esc(u.name)})` : ""}</option>`).join("")}</select></label>
+  screen: () => { const r = data.passport.risk ?? {}, v = (k) => esc(r[k] ?? "");
+    return `<p class="why">The envelope is binding: a startup that needs more access or more data than it allows is screened out, with the reason. Everyone else is ranked on the published weights. Screening again replaces the last screen and its panel scores.</p>
+    <label>Users affected * <input name="users" required value="${v("users")}" placeholder="One OPD, staff only; no patient-facing change"></label>
+    <label>Systems touched * <input name="systems" required value="${v("systems")}" placeholder="Registration and consultation timestamps"></label>
+    <div class="choice" role="radiogroup" aria-label="Write access" style="margin-top:.6rem">
+      <label><input type="radio" name="allow_write" value="no"${r.allow_write ? "" : " checked"}> Read-only</label>
+      <label><input type="radio" name="allow_write" value="yes"${r.allow_write ? " checked" : ""}> Writes allowed</label></div>
+    <label>Most sensitive data allowed * <select name="data_class" required>
+      ${[["none", "None"], ["pseudonymised", "Pseudonymised"], ["personal", "Personal (DPDP agreement needed)"]].map(([k, l]) =>
+        `<option value="${k}"${(r.data_class ?? "pseudonymised") === k ? " selected" : ""}>${l}</option>`).join("")}</select></label>
+    <label>Reversibility * <input name="reversibility" required value="${v("reversibility")}" placeholder="Removed in a day; existing system untouched"></label>
+    <label>Exit cost <input name="exit_cost" value="${v("exit_cost")}" placeholder="Nil beyond the data deletion certificate"></label>
+    <label>Total cap (₹) * <input name="cap_inr" inputmode="numeric" required value="${v("cap_inr")}"></label>
+    <label>Planned start * <input name="start_date" type="date" required value="${v("start_date")}"></label>
+    <button class="primary">${data.passport.screening ? "Screen again" : "Screen startups"}</button>`; },
+  score: (a) => `<p class="why">Score each startup on the shortlist from 0 to 100, independently. The match score is shown for reference; it is not your score.</p>
+    ${a.shortlist.map((c) => `<div class="score-row" data-id="${c.id}"><label>${esc(c.name)} <span class="hint">match ${c.score} / 100</span>
+      <input data-k="score" inputmode="numeric" required value="${c.mine?.score ?? ""}" aria-label="Your score for ${esc(c.name)}"></label>
+      <input data-k="note" placeholder="Reason (optional)" value="${esc(c.mine?.note ?? "")}" aria-label="Reason for ${esc(c.name)}"></div>`).join("")}
+    <label>Dissent <textarea name="dissent" rows="2"></textarea></label>
+    <button class="primary">Submit scores</button>`,
+  compile_route: () => `<p class="why">A rules table, not legal advice from a model: it shows every route considered, why each was or wasn't open, and what would change it.</p>
+    <p style="margin:.6rem 0 0"><b>Is the buyer the department that ran the pilot?</b></p>
+    <div class="choice"><label><input type="radio" name="same_department" value="yes" required> Yes</label><label><input type="radio" name="same_department" value="no"> No</label></div>
+    <p style="margin:.6rem 0 0"><b>Will it spread to other departments or districts?</b></p>
+    <div class="choice"><label><input type="radio" name="scale_up" value="yes" required> Yes</label><label><input type="radio" name="scale_up" value="no"> No</label></div>
+    <button class="primary">Compile the route</button>`,
+  approve_route: () => `<p class="why">Approving puts the route on the record against the evidence that justified it. Nothing is ordered automatically.</p>
+    <label>Note <textarea name="note" rows="2"></textarea></label>
+    <button class="primary">Approve the route</button>`,
+  award: (a) => a.startups.length ? `<label>Startup <span class="hint">only startups that passed the hard filters</span> <select name="startup_user_id" required>${a.startups.map((u) => `<option value="${u.id}">${esc(u.name)} · match ${u.score}${u.panel != null ? ` · panel ${u.panel}` : ""}${u.terms === "standard terms" ? " · standard terms" : ""}</option>`).join("")}</select></label>
     <label>Scope * <input name="scope" required placeholder="One OPD, 90 days, staff-facing only"></label>
     <label>Data access * <input name="data_access" required placeholder="Pseudonymised timestamps only"></label>
     <label>IP terms <input name="ip" placeholder="Startup keeps product IP; department keeps the data"></label>
@@ -415,6 +500,10 @@ async function submitAction(e) {
   if (action === "award") {
     body.milestones = [...f.querySelectorAll(".ms-row")].map((row) =>
       Object.fromEntries([...row.querySelectorAll("[data-k]")].map((i) => [i.dataset.k, i.value])));
+  }
+  if (action === "score") {
+    body.scores = [...f.querySelectorAll(".score-row")].map((row) => ({ user_id: row.dataset.id,
+      score: row.querySelector('[data-k="score"]').value, note: row.querySelector('[data-k="note"]').value }));
   }
   if (action === "upload_evidence") {
     const file = f.file.files[0];

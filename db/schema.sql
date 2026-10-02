@@ -140,3 +140,24 @@ end $$;
 drop trigger if exists evidence_files_immutable on evidence_files;
 create trigger evidence_files_immutable before update or delete on evidence_files
   for each row execute function evidence_files_immutable();
+
+-- ---------------------------------------------------------------------------
+-- Phase 3: what a startup tells matching about itself. Self-declared until an
+-- authorised registry check exists (phase 5); the passport says so.
+create table if not exists startup_profiles (
+  user_id            uuid primary key references users(id),
+  dpiit_recognised   boolean not null default false,
+  dpiit_number       text,
+  udyam_registered   boolean not null default false,
+  sectors            text[] not null default '{}',
+  districts          text[] not null default '{}',   -- empty: works statewide
+  capabilities       text not null default '',
+  needs_write_access boolean not null default false,
+  data_needed        text not null default 'pseudonymised'
+                       check (data_needed in ('none', 'pseudonymised', 'personal')),
+  prior_deployments  int not null default 0 check (prior_deployments >= 0),
+  prior_evidence     text not null default '',
+  gem_ratings        int not null default 0 check (gem_ratings >= 0),
+  available_from     date,
+  updated_at         timestamptz not null default now()
+);

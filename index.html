@@ -14,6 +14,8 @@
   #gate-why { color: #777; margin: .5rem 0; }
   #preview { background: #fff4d6; padding: .5rem .75rem; }
   #status { margin-top: .75rem; }
+  #quality ul { padding-left: 1.1rem; }
+  #quality .why { color: var(--muted); font-size: .9rem; }
   button { font: inherit; padding: .5rem 1rem; margin-top: 1rem; }
 </style>
 </head>
@@ -56,7 +58,9 @@
 
   <!-- TODO: replace this sentence with Jones's (M5) copy JSON when it lands (tomorrow 11:00). -->
   <p id="gate-why">You can't submit yet. Without a baseline value, where it came from, how it was measured and a target, there is nothing to compare the pilot against.</p>
+  <button type="button" id="check" disabled>Check quality</button>
   <button type="submit" id="submit" disabled>Submit challenge</button>
+  <div id="quality" role="status"></div>
   <p id="status" role="status"></p>
 </form>
 
@@ -74,6 +78,7 @@
   function checkGate() {
     const open = gate.every((el) => el.value.trim() !== "");
     submit.disabled = !open || !allowed;
+    document.getElementById("check").disabled = !open || !allowed;
     why.hidden = open;
   }
   form.addEventListener("input", checkGate);
@@ -89,10 +94,22 @@
     checkGate();
   });
 
+  // Advisory: the same report is stored with the challenge and read by the Programme Administrator.
+  document.getElementById("check").addEventListener("click", async () => {
+    const out = document.getElementById("quality");
+    out.textContent = "Checking…";
+    try {
+      const q = await App.api("/api/challenges", { method: "POST", body: { ...Object.fromEntries(new FormData(form)), check_only: true } });
+      out.innerHTML = `<p><b>${q.defects.length ? `${q.defects.length} thing${q.defects.length > 1 ? "s" : ""} to consider` : "No findings"}</b>
+        <span class="why">· rules${q.model ? " + model" : " only (model not run)"} · advisory: you can still submit</span></p>`
+        + (q.defects.length ? `<ul>${q.defects.map((d) => `<li><b>${App.esc(d.label)}</b>${d.span ? ` — “${App.esc(d.span)}”` : ""}<br><span class="why">${App.esc(d.why)}</span></li>`).join("")}</ul>` : "");
+    } catch (err) { out.textContent = "Couldn't check: " + err.message; }
+  });
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     submit.disabled = true;
-    status.textContent = "Saving…";
+    status.textContent = "Saving… (running the quality check)";
     try {
       const out = await App.api("/api/challenges", { method: "POST", body: Object.fromEntries(new FormData(form)) });
       location.href = "passport.html?id=" + out.record_id;

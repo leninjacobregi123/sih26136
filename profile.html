@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Startup profile</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  form { max-width: 42rem; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+  .check { display: flex; gap: .5rem; align-items: center; font-weight: 400; }
+  .check input { width: auto; }
+  fieldset { margin-top: 1rem; border: 1px solid var(--line); border-radius: 6px; }
+  @media (max-width: 30rem) { .pair { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>Startup profile</h1>
+<p class="muted">Screening reads this when a department screens startups for a challenge. Registration details are
+self-declared for now and shown that way on every passport.</p>
+<div id="out"></div>
+<form id="profile" hidden>
+  <label>What your product does * <span class="hint">plain words; screening matches these against the challenge</span>
+    <textarea name="capabilities" rows="3" required maxlength="2000"></textarea></label>
+  <div class="pair">
+    <label>Sectors <span class="hint">comma-separated</span> <input name="sectors" placeholder="Health, Urban services"></label>
+    <label>Districts served <span class="hint">empty means statewide</span> <input name="districts" placeholder="Nagpur, Amravati"></label>
+  </div>
+  <fieldset>
+    <legend>What a pilot would need</legend>
+    <label class="check"><input type="checkbox" name="needs_write_access"> We need to write to the department's systems</label>
+    <label>Most sensitive data we need <select name="data_needed" required>
+      <option value="none">None</option><option value="pseudonymised">Pseudonymised</option><option value="personal">Personal</option></select></label>
+    <label>Available from <input name="available_from" type="date"></label>
+  </fieldset>
+  <fieldset>
+    <legend>Registration and track record</legend>
+    <label class="check"><input type="checkbox" name="dpiit_recognised"> DPIIT-recognised</label>
+    <label>DPIIT certificate number <input name="dpiit_number" maxlength="40"></label>
+    <label class="check"><input type="checkbox" name="udyam_registered"> Udyam-registered</label>
+    <div class="pair">
+      <label>Prior deployments <input name="prior_deployments" inputmode="numeric" value="0"></label>
+      <label>GeM buyer ratings <input name="gem_ratings" inputmode="numeric" value="0"></label>
+    </div>
+    <label>Prior evidence <span class="hint">measured results score higher than claims</span>
+      <textarea name="prior_evidence" rows="2" maxlength="2000" placeholder="2 trust hospitals; median wait down 41% over 90 days"></textarea></label>
+  </fieldset>
+  <button class="primary" style="margin-top:1rem">Save profile</button>
+  <p id="status" role="status"></p>
+</form>
+<script src="assets/app.js"></script>
+<script>
+const form = document.getElementById("profile"), out = document.getElementById("out"), status = document.getElementById("status");
+const BOOLS = ["needs_write_access", "dpiit_recognised", "udyam_registered"];
+(async () => {
+  const me = await App.user();
+  App.nav();
+  if (!me) { out.innerHTML = `<p><a href="login.html?next=profile.html">Sign in</a> with your startup account.</p>`; return; }
+  if (me.role !== "startup" || me.is_demo) { out.innerHTML = `<p>Profiles are for startup accounts.</p>`; return; }
+  const { profile } = await App.api("/api/profile");
+  if (profile) for (const [k, v] of Object.entries(profile)) {
+    const el = form.elements[k];
+    if (!el) continue;
+    if (BOOLS.includes(k)) el.checked = !!v; else el.value = Array.isArray(v) ? v.join(", ") : v ?? "";
+  }
+  if (profile?.updated_at) status.textContent = `Last saved ${new Date(profile.updated_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.`;
+  form.hidden = false;
+})().catch((err) => { out.innerHTML = `<p class="err">${App.esc(err.message)}</p>`; });
+
+form.onsubmit = async (e) => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(form));
+  for (const k of BOOLS) body[k] = form.elements[k].checked;
+  status.textContent = "Saving…"; status.className = "";
+  try { await App.api("/api/profile", { method: "POST", body }); status.textContent = "Saved. The next screening will use it."; }
+  catch (err) { status.textContent = err.message; status.className = "err"; }
+};
+</script>
+</body>
+</html>

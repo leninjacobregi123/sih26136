@@ -12,6 +12,7 @@ if (url) {
   delete process.env.DATABASE_PASSWORD;
 }
 process.env.SESSION_SECRET ||= randomBytes(32).toString("base64url");
+process.env.LLM_API_KEY = ""; // the quality gate's model is never called from tests
 const skip = !url && "set TEST_DATABASE_URL to run";
 
 const { db } = await import("../api/_lib.js");
@@ -32,6 +33,8 @@ before(async () => {
   }
   u.startup2 = await auth.createUser({ email: `startup2-${run}@test.invalid`, name: "Other startup", role: "startup", password: PASSWORD });
   u.demoDept = await auth.demoUser("department", "Demo officer");
+  await addProfile(u.startup, { dpiit_recognised: true, capabilities: "Token-free OPD flow from registration timestamps; median wait" });
+  await addProfile(u.startup2, { capabilities: "Hospital rosters", needs_write_access: true });
 });
 after(async () => { if (url) await db().end(); });
 
@@ -40,13 +43,23 @@ const CHALLENGE = {
   kpi_unit: "min", baseline_value: "94", baseline_source: "HMIS export", baseline_method: "All visits Oct–Dec",
   target_value: "60", target_direction: "decrease", duration_days: "90",
 };
+async function addProfile(user, p) {
+  await db().query(
+    `insert into startup_profiles (user_id, dpiit_recognised, capabilities, needs_write_access, data_needed, sectors, gem_ratings)
+     values ($1, $2, $3, $4, $5, $6, $7) on conflict (user_id) do nothing`,
+    [user.id, !!p.dpiit_recognised, p.capabilities, !!p.needs_write_access, p.data_needed ?? "pseudonymised", p.sectors ?? ["Health"], p.gem_ratings ?? 0]);
+}
+const ENVELOPE = { users: "One OPD", systems: "Timestamps", allow_write: "no", data_class: "pseudonymised",
+  reversibility: "Removed in a day", cap_inr: "1500000", start_date: "2026-11-01" };
+const TODAY = new Date().toISOString().slice(0, 10);
 const newPilot = async () => (await createChallenge(u.department, CHALLENGE)).record_id;
 const state = async (id) => (await getBundle(id)).record.passport_state;
 const refused = (status, re) => (e) => e.status === status && (!re || re.test(e.message));
 
 async function toPilotActive(id) {
-  await runAction(u.admin, id, "verify_baseline", { result: "Reproduced 94 from the export" });
+  await runAction(u.admin, id, "verify_baseline", { result: "Reproduced 94 from the export", quality_ack: true });
   await runAction(u.department, id, "seal", {});
+  await runAction(u.admin, id, "screen", ENVELOPE);
   await runAction(u.admin, id, "award", {
     startup_user_id: u.startup.id, scope: "One OPD", data_access: "Timestamps only",
     milestones: [
@@ -100,6 +113,7 @@ test("a real pilot runs from Draft to Independently validated", { skip }, async 
   await assert.rejects(runAction(u.department, id, "seal", {}), refused(409, /Draft/));
   await assert.rejects(runAction(u.department, id, "verify_baseline", { result: "x" }), refused(403));
   await assert.rejects(runAction(u.admin, id, "verify_baseline", {}), refused(422, /result/));
+  await assert.rejects(runAction(u.admin, id, "verify_baseline", { result: "ok" }), refused(422, /quality report/));
   await toPilotActive(id);
   let b = await getBundle(id);
   assert.equal(b.record.passport_state, "Pilot active");
@@ -138,8 +152,9 @@ test("a real pilot runs from Draft to Independently validated", { skip }, async 
   await assert.rejects(runAction(u.finance, id, "record_payment", { milestone: 1, outcome: "delayed" }), refused(422, /reason/));
   await runAction(u.finance, id, "record_payment", { milestone: 1, outcome: "delayed", delay_reason: "Treasury re-appropriation" });
   await assert.rejects(runAction(u.finance, id, "record_payment", { milestone: 1, outcome: "paid", paid_on: "2026-02-30" }), refused(422, /date/));
-  await runAction(u.finance, id, "record_payment", { milestone: 1, outcome: "paid", paid_on: "2099-01-01" });
-  await assert.rejects(runAction(u.finance, id, "record_payment", { milestone: 1, outcome: "paid", paid_on: "2099-01-01" }), refused(409, /already paid late/));
+  await assert.rejects(runAction(u.finance, id, "record_payment", { milestone: 1, outcome: "paid", paid_on: "2099-01-01" }), refused(422, /future/));
+  await runAction(u.finance, id, "record_payment", { milestone: 1, outcome: "paid", paid_on: TODAY });
+  await assert.rejects(runAction(u.finance, id, "record_payment", { milestone: 1, outcome: "paid", paid_on: TODAY }), refused(409, /already paid late/));
 
   await runAction(u.validator, id, "attest", { achieved: "55", method: "DiD vs comparison OPD" });
   b = await getBundle(id);
@@ -151,9 +166,9 @@ test("a real pilot runs from Draft to Independently validated", { skip }, async 
   assert.equal(Number(b.record.delta), -39);
   assert.equal(b.signatures.length, 1);
   assert.equal(b.chain.intact, true);
-  assert.equal(b.audit.length, 13);
+  assert.equal(b.audit.length, 14);
   // Payment can still be recorded after validation.
-  await runAction(u.finance, id, "record_payment", { milestone: 2, outcome: "paid", paid_on: "2099-01-02" });
+  await runAction(u.finance, id, "record_payment", { milestone: 2, outcome: "paid", paid_on: TODAY });
 });
 
 test("a target changed after sealing stops the validator, on the record", { skip }, async () => {
@@ -189,7 +204,7 @@ test("demo and real stay apart", { skip }, async () => {
 test("HTTP: sessions, JSON-only POSTs, downloads and live events", { skip }, async (t) => {
   const port = 3900 + Math.floor(Math.random() * 90);
   const server = spawn(process.execPath, ["scripts/dev.mjs"], {
-    env: { ...process.env, PORT: String(port) }, stdio: ["ignore", "pipe", "inherit"] });
+    env: { ...process.env, PORT: String(port), LLM_API_KEY: "" }, stdio: ["ignore", "pipe", "inherit"] });
   t.after(() => server.kill());
   await new Promise((ok) => server.stdout.once("data", ok));
   const base = `http://localhost:${port}`;
@@ -223,7 +238,7 @@ test("HTTP: sessions, JSON-only POSTs, downloads and live events", { skip }, asy
   const stream = await call(`/api/events?record=${id}`, { cookie: dept });
   assert.match(stream.headers.get("content-type"), /text\/event-stream/);
   const reader = stream.body.getReader();
-  const res = await call("/api/passports", { cookie: admin, body: { id, action: "verify_baseline", result: "ok" } });
+  const res = await call("/api/passports", { cookie: admin, body: { id, action: "verify_baseline", result: "ok", quality_ack: true } });
   assert.equal(res.status, 200);
   let seen = "";
   while (!seen.includes("Verified the baseline")) {
@@ -237,6 +252,7 @@ test("HTTP: sessions, JSON-only POSTs, downloads and live events", { skip }, asy
 
   // Evidence downloads: attachment + nosniff, never for the public role.
   await runAction(u.department, id, "seal", {});
+  await runAction(u.admin, id, "screen", ENVELOPE);
   await runAction(u.admin, id, "award", { startup_user_id: u.startup.id, scope: "s", data_access: "d",
     milestones: [{ title: "t", evidence_expected: "e", due: "2026-11-01", amount_inr: 1 }] });
   await runAction(u.startup, id, "upload_evidence", { milestone: 1, title: "x", filename: "x.txt", mime: "text/plain", data: b64("<script>alert(1)</script>") });

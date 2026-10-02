@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { db } from "./_lib.js";
 import { HttpError } from "./_http.js";
 import { ROLES } from "./_auth.js";
+import { slaStatus } from "./_procurement.js";
 
 const require = createRequire(import.meta.url);
 export const scenario = require("../shared/demo/opd-scenario.json");
@@ -140,6 +141,9 @@ export async function getBundle(recordId) {
     readings: readings.rows,
     signatures: signatures.rows,
     files: files.rows,
+    // Real pilots only: the demo's payments follow its own scripted calendar.
+    ledger: rec.is_simulated ? null
+      : (rec.passport.milestones ?? []).map((m) => ({ n: m.n, amount_inr: m.amount_inr, ...slaStatus(m.payment) })),
     audit: audit.rows.map(({ actor_id, ...e }) => e),
     chain: verifyChain(audit.rows),
   };

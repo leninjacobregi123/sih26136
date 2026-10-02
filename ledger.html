@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payments ledger</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; margin-top: .8rem; }
+  th, td { text-align: right; padding: .45rem .5rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  th { color: var(--muted); font-size: .82rem; vertical-align: bottom; }
+  .bad { color: var(--bad); font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>Payments ledger</h1>
+<p class="muted" id="basis">How promptly departments pay startups for accepted milestones. Public; no sign-in.</p>
+<div id="out"></div>
+<script src="assets/app.js"></script>
+<script>
+const out = document.getElementById("out");
+App.user().then(App.nav);
+App.api("/api/ledger").then((l) => {
+  document.getElementById("basis").textContent =
+    `How promptly departments pay startups for accepted milestones, against a ${l.sla_days}-day payment window. ${l.sla_basis} As of ${l.as_of}. Public; no sign-in; no startup names.`;
+  if (!l.departments.length) { out.innerHTML = `<p class="muted">No real pilots yet.</p>`; return; }
+  const n = (v) => v ?? "—";
+  out.innerHTML = `<div class="scroll"><table><thead><tr><th>Department</th><th>Pilots</th><th>Milestones accepted</th><th>Paid</th>
+    <th>Paid on time</th><th>Paid late</th><th>Overdue now</th><th>Median days to pay</th><th>Paid (₹ L)</th></tr></thead><tbody>
+    ${l.departments.map((d) => `<tr><td>${App.esc(d.department)}</td><td>${d.pilots}</td><td>${d.accepted}</td><td>${d.paid}</td>
+      <td>${d.paid_on_time}${d.on_time_pct != null ? ` (${d.on_time_pct}%)` : ""}</td><td>${d.paid_late}</td>
+      <td class="${d.overdue ? "bad" : ""}">${d.overdue}</td><td>${n(d.median_days_to_pay)}</td>
+      <td>${(d.paid_inr / 1e5).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}).catch((err) => { out.innerHTML = `<p class="err">${App.esc(err.message)}</p>`; });
+</script>
+</body>
+</html>

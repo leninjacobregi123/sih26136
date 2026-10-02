@@ -23,18 +23,25 @@ api/challenges.js           item 4 — POST refuses without baseline value/sourc
 index.html                  item 4 — the composer; submit disabled until the three are filled
 passport.html               a passport: the demo (no ?id) or a real pilot (?id=), with its action forms
 pilots.html, login.html     every real pilot; sign in (real account, or a one-click demo role)
+profile.html                a startup's profile: what screening reads (self-declared)
+ledger.html                 public payments ledger: per department, against the payment SLA
 assets/app.js, app.css      shared: API calls, session, nav bar, live notifications
 api/auth.js, _auth.js       sign in / out; scrypt passwords, HMAC-signed HttpOnly session cookie
 api/passports.js            list passports; read one with your available actions; run an action
 api/_actions.js             the real workflow: who may do what, in which state, with what input
 api/evidence.js             download an evidence file (signed in, not Public Viewer)
+api/profile.js, ledger.js   startup profile; public payment aggregates (no sign-in, no startup names)
+api/_quality.js             quality gate: rule checks + the model over Pranjal's defect taxonomy
+api/_matching.js            hard filters with counterfactuals, then a score on published weights
+api/_procurement.js         procurement route compiler (Tier 1/2/3 rules) and payment SLA status
+shared/policy.json          programme policy: payment SLA, deeming GR, match weights
 api/events.js               live audit events for a passport (server-sent events)
 api/demo.js                 GET the demo passport; POST load / reset / advance (demo accounts)
 api/_passport.js            seal (SHA-256), hash-chained audit log, the demo's step engine
 shared/demo/opd-scenario.json the seeded OPD pilot: 7 roles, 10 states, 16 steps (edit content here)
 scripts/dev.mjs             npm run dev — the pages and api/ locally, like Vercel
 scripts/add-user.mjs        npm run user:add — create a real account (prints a generated password)
-scripts/*.test.mjs          npm test — 14 tests; needs TEST_DATABASE_URL (a scratch database)
+scripts/*.test.mjs          npm test — 25 tests; needs TEST_DATABASE_URL (a scratch database)
 ```
 
 ## Team
@@ -110,16 +117,43 @@ audit log with the passport in one transaction:
 
 | Step | Who | Moves to |
 |---|---|---|
-| Create the challenge (composer: baseline + target) | Department Officer | Draft |
-| Verify the baseline | Programme Administrator | Baseline verified |
+| Create the challenge (composer: baseline + target; runs the quality gate) | Department Officer | Draft |
+| Verify the baseline, confirming the quality report was read | Programme Administrator | Baseline verified |
 | Seal the criteria (SHA-256) | Department Officer | Criteria sealed |
-| Award: startup account, scope, data access, 1–8 paid milestones | Programme Administrator | Pilot active |
+| Set the risk envelope and screen every startup profile | Programme Administrator | — |
+| Score the shortlist, independently | Expert Evaluators | — |
+| Award to a startup that passed screening: scope, data access, 1–8 paid milestones | Programme Administrator | Pilot active |
 | Submit evidence files (≤ 3 MB, hashed, never editable) | the awarded Startup only | — |
 | Accept or return each milestone | Department Officer | Evidence submitted, once all are accepted |
 | Record each payment: paid, or delayed with a reason | Finance / Procurement Officer | — |
 | Recompute the seal, then attest met / missed | Independent Validator | Independently validated |
+| Compile the procurement route from the passport's facts | Finance / Procurement Officer | Procurement-ready (or a learning record) |
+| Approve the route | Department Officer | — |
 
-Procurement, deployment, adoption and replication are phases 3–4. Anyone with the passport open
+Deployment, adoption and replication are phase 4.
+
+## Phase 3: what each engine does, and what it doesn't
+
+- **Quality gate.** Rule checks (no unit or definition, no comparison unit, a named solution,
+  an implausible duration) always run; the model adds findings from `shared/defect_taxonomy.json`,
+  and only spans that really appear in the notice are kept. Findings are advisory, as the
+  taxonomy says: nothing is blocked. What is required is a person: the Programme Administrator
+  ticks that the report was read when verifying the baseline. The composer's **Check quality**
+  shows the same report before saving. If the model is unreachable the rules still stand and the
+  report says the model did not run.
+- **Matching.** No model and no hidden score. Hard filters (write access, data class,
+  availability, a profile at all) are binding, and each failure says what would have changed it.
+  DPIIT recognition decides the terms (GFR 173(i)), not eligibility. The rest are ranked on the
+  weights in `shared/policy.json`, each component with its reason. Evaluators score
+  independently; the award is the administrator's, and only to a startup that passed.
+- **Procurement route.** A rules table: Tier 1 needs the deeming GR (off in `policy.json`),
+  Tier 2 needs two or more validated winners, Tier 3 needs DPIIT recognition. Every rejected
+  route lists the failing condition and the fact that would open it. A missed result compiles to
+  a learning record, not a purchase. Not legal advice.
+- **Payment SLA.** Accepting a milestone sets its payment due date (`payment_sla_days`, 30, a
+  programme choice). The passport shows on track / overdue / paid on time / paid late, and the
+  grievance clock once overdue; `ledger.html` publishes the per-department totals.
+ Anyone with the passport open
 sees other people's actions arrive live (a notification and a redraw).
 
 **Before deploying this:** add `SESSION_SECRET` (32+ random characters, see `.env.example`) to
