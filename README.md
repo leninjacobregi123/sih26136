@@ -1,7 +1,11 @@
 # Pilot register — Day 1 backend
 
 A small Vercel app: `index.html` (the composer) + `api/*.js` (plain Node functions).
-No framework, no build step. This repo is the app; `govstart-bridge` is only the static pitch walkthrough.
+No framework, no build step. This repo is the one codebase: the app at the root, and the static pitch
+walkthrough (formerly `govstart-bridge`) in `pitch/` — its site is `pitch/docs/`. `pitch/` is not uploaded to Vercel.
+
+**Roadmap:** [APPLICATION_UPDATE.md](APPLICATION_UPDATE.md). `main` / tag `final-v1` is the submitted
+implementation; new work happens on `v2-updates` and merges to `main` only when it works.
 
 **Preview (static, no saving):** https://leninjacobregi.me/sih26136/
 **Full app (form saves, APIs live):** after the Vercel deploy below.
