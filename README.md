@@ -16,14 +16,17 @@ Indian procurement law contains no innovation-procurement instrument — no SBIR
 no EU-style pre-commercial carve-out, and no ground in the General Financial Rules that
 lets a department buy from a firm because that firm won a prior competition.
 
-So this proposes no change to the rules. It is a contract and workflow design built
+So this proposes no change to the rules. It is an evidence and contract workflow design built
 entirely from instruments that already exist: the startup relaxations in GFR Rules 173(i)
 and 170(i), the proprietary route in Rule 166(i) reached the way DAP 2020 reaches it for
 iDEX winners, and the GeM Startup Runway catalogue as the replication rail.
 
 ## How it is organised
 
-The site is written for someone meeting the idea for the first time. The landing page
+The central product is the **Pilot Evidence Passport**: a portable record of the baseline,
+sealed criteria, risk controls, milestones, payment trace and independent validation result.
+It is what another department can review before deciding whether to procure or replicate a
+solution. The site is written for someone meeting the idea for the first time. The landing page
 moves through **the gap → the idea → how it works → proof → enter**, and the navigation
 is five groups: *The mechanism*, *Marketplace*, *Evidence & rules*, *Department services*,
 *About*.

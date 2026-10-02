@@ -283,6 +283,7 @@ function paintRun(){
       <span class="amt">₹${m[2].toFixed(2)} L</span></div>`;}).join("");
   $("msBtn").classList.toggle("hidden",S.ms>=MS.length);
   const done=S.ms>=MS.length;
+  renderEvidencePassport(false);
   if(!done){
     $("valOut").innerHTML=`<p style="font-size:13px;color:var(--muted)">The validator — <b>IIT Bombay CTARA</b>, named back at step 1 — cannot start until the evidence phase closes. Release all four milestones first.</p>
       <p class="cite" style="margin-top:8px">Naming the validator before any results exist is the whole point. A validator chosen afterwards is chosen knowing what the results are.</p>`;
@@ -300,8 +301,30 @@ function paintRun(){
       <button class="choice" aria-pressed="${S.result==="multi"}" onclick="setResult('multi')">Two startups met them</button>
       <button class="choice" aria-pressed="${S.result==="fail"}" onclick="setResult('fail')">Missed the criteria</button>
     </div>`;
+  renderEvidencePassport(intact);
 }
 function setResult(r){S.result=r;paint();toast(r==="fail"?"Recorded as failed. Watch what step 6 does with that.":"Recorded. Step 6 will pick the lawful route.");}
+
+function renderEvidencePassport(intact){
+  if(!$("passportBody"))return;
+  const f=FIRMS[S.pick]||FIRMS[0], verified=S.ms>=MS.length&&!!S.result&&!!intact;
+  const validation=S.result==="pass"?"Met the criteria":S.result==="multi"?"Two startups met them":S.result==="fail"?"Missed the criteria":"Awaiting validator";
+  const payment=S.ms===0?"Not started":S.ms<MS.length
+    ?`${S.ms} of ${MS.length} milestones accepted · ₹${MS.slice(0,S.ms).reduce((a,b)=>a+b[2],0).toFixed(2)} L packeted`
+    :"Evidence phase complete · ₹"+FEE.toFixed(2)+" L packet assembled";
+  const adoption=S.result==="pass"||S.result==="multi"?"Pending deployment and adoption measurement":"Not applicable until validation succeeds";
+  $("passportBody").innerHTML=`<div class="grid g2" style="gap:10px">
+    <div><span class="cite">Record status</span><b style="display:block;color:${verified?"var(--green-t)":"var(--muted)"}">${verified?"Verified evidence record":"Draft evidence record"}</b></div>
+    <div><span class="cite">Challenge</span><b style="display:block">${esc(S.title)}</b></div>
+    <div><span class="cite">Baseline → target</span><b style="display:block">${esc(S.kpis[0][1])} → ${esc(S.kpis[0][2])}</b></div>
+    <div><span class="cite">Startup / validator</span><b style="display:block">${esc(f.n)} · IIT Bombay CTARA</b></div>
+    <div><span class="cite">Validation outcome</span><b style="display:block">${validation}</b></div>
+    <div><span class="cite">Payment trace</span><b style="display:block">${payment}</b></div>
+    <div><span class="cite">Adoption measurement</span><b style="display:block">${adoption}</b></div>
+    <div><span class="cite">Reuse status</span><b style="display:block">${verified?"Ready for procurement and cross-department review":"Locked until seal and validation pass"}</b></div>
+  </div>
+  <p class="cite" style="margin-top:11px">The passport is the portable evidence layer: another department can review the baseline, controls, milestones and validator outcome without relying on a promise or an informal success story.</p>`;
+}
 
 /* ===== step 6: tier routing ===== */
 const TIERS=[
