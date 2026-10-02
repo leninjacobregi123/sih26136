@@ -24,12 +24,13 @@ createServer(async (req, res) => {
       const { default: handler } = await import(file);
       return await handler(req, res);
     }
-    // Only the pages at the root are served, as on Vercel.
+    // The pages at the root and assets/, as Vercel serves them.
     const page = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
-    if (!/^[a-z0-9-]+\.html$/.test(page) || !existsSync(new URL(page, root))) {
+    const type = { html: "text/html; charset=utf-8", js: "text/javascript", css: "text/css" }[page.split(".").pop()];
+    if (!/^(assets\/)?[a-z0-9-]+\.(html|js|css)$/.test(page) || !type || !existsSync(new URL(page, root))) {
       return send(res, 404, "text/plain", "not found");
     }
-    send(res, 200, "text/html; charset=utf-8", readFileSync(new URL(page, root)));
+    send(res, 200, type, readFileSync(new URL(page, root)));
   } catch (err) {
     console.error(err);
     if (!res.headersSent) send(res, 500, "application/json", JSON.stringify({ error: err.message }));

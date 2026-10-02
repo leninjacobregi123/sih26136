@@ -29,8 +29,9 @@ export function db() {
     if (!url) throw new Error("DATABASE_URL is not set");
     if (/@host\//.test(url)) throw new Error("DATABASE_URL is still the template placeholder");
     // A separate DATABASE_PASSWORD spares anyone URL-encoding a password with @ # / in it.
+    // A URL that already carries a password (a local or test database) keeps its own.
     const password = process.env.DATABASE_PASSWORD;
-    if (password !== undefined) {
+    if (password !== undefined && !new URL(url).password) {
       if (!password.trim()) throw new Error("DATABASE_PASSWORD is empty; put the Supabase database password in .env.local");
       const u = new URL(url);
       u.password = encodeURIComponent(password);

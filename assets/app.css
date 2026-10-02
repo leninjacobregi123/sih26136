@@ -1,0 +1,22 @@
+/* Shared by every page: the nav bar, forms, buttons and the notification toast. */
+:root { --ink: #111; --muted: #5b5b5b; --line: #d6d6d6; --soft: #f4f4f4; --ok: #146c2e; --bad: #a3141b; --warn: #8a5a00; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { font: 15px/1.5 system-ui, sans-serif; color: var(--ink); background: #fff; max-width: 64rem; margin: 0 auto; padding: 1rem; }
+a { color: inherit; }
+nav.app { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: .6rem; margin-bottom: .8rem; font-size: .92rem; }
+nav.app .brand { font-weight: 700; text-decoration: none; }
+nav.app .me { margin-left: auto; color: var(--muted); }
+nav.app button.link { border: 0; background: none; padding: 0; text-decoration: underline; cursor: pointer; font: inherit; color: inherit; }
+button, select, input, textarea { font: inherit; }
+button { padding: .45rem .8rem; border: 1px solid var(--ink); background: #fff; color: var(--ink); border-radius: 4px; cursor: pointer; }
+button.primary { background: var(--ink); color: #fff; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+input, select, textarea { padding: .4rem; border: 1px solid #999; border-radius: 4px; width: 100%; background: #fff; color: var(--ink); }
+label { display: block; margin-top: .6rem; font-weight: 600; }
+label .hint { font-weight: 400; color: var(--muted); font-size: .85rem; }
+.err { color: var(--bad); font-weight: 600; }
+.muted { color: var(--muted); }
+#toasts { position: fixed; right: 1rem; bottom: 1rem; display: grid; gap: .5rem; z-index: 10; max-width: min(24rem, calc(100vw - 2rem)); }
+#toasts div { background: var(--ink); color: #fff; padding: .6rem .8rem; border-radius: 6px; font-size: .9rem; box-shadow: 0 4px 16px #0003; }
+@media print { nav.app, #toasts { display: none !important; } }

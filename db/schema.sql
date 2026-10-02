@@ -1,5 +1,5 @@
 -- Run once against the Postgres that DATABASE_URL points at (Neon or Supabase).
--- Four tables, plus the audit log the Evidence Passport needs (bottom of file).
+-- Four tables, the audit log and evidence files the passport needs, and user accounts.
 create extension if not exists vector;
 
 create table if not exists challenges (
@@ -92,3 +92,51 @@ end $$;
 drop trigger if exists audit_events_append_only on audit_events;
 create trigger audit_events_append_only before update or delete on audit_events
   for each row execute function audit_events_append_only();
+
+-- ---------------------------------------------------------------------------
+-- Phase 2: accounts, real pilots, evidence files.
+-- No public sign-up: real accounts are made with scripts/add-user.mjs. Demo accounts
+-- (is_demo, no password) can only act on simulated records.
+create table if not exists users (
+  id            uuid primary key default gen_random_uuid(),
+  email         text unique not null,
+  name          text not null,
+  role          text not null check (role in
+                  ('department', 'admin', 'startup', 'evaluator', 'validator', 'finance', 'public')),
+  org           text,
+  password_hash text,
+  is_demo       boolean not null default false,
+  active        boolean not null default true,
+  created_at    timestamptz default now()
+);
+
+alter table challenges   add column if not exists target_value numeric;
+alter table challenges   add column if not exists target_direction text;   -- 'decrease' | 'increase'
+alter table challenges   add column if not exists created_by uuid references users(id);
+alter table records      add column if not exists startup_user_id uuid references users(id);
+alter table audit_events add column if not exists actor_id uuid references users(id);
+
+-- Evidence files live in Postgres (capped at 3 MB each by the API) and never change.
+create table if not exists evidence_files (
+  id          uuid primary key default gen_random_uuid(),
+  record_id   uuid not null references records(id),
+  milestone   int not null,
+  title       text not null,
+  filename    text not null,
+  mime        text not null,
+  bytes       int not null,
+  sha256      text not null,
+  data        bytea not null,
+  uploaded_by uuid references users(id),
+  uploaded_at timestamptz not null default now()
+);
+create index if not exists evidence_files_record on evidence_files (record_id);
+
+create or replace function evidence_files_immutable() returns trigger
+language plpgsql as $$
+begin
+  raise exception 'evidence_files cannot be changed or removed';
+end $$;
+drop trigger if exists evidence_files_immutable on evidence_files;
+create trigger evidence_files_immutable before update or delete on evidence_files
+  for each row execute function evidence_files_immutable();

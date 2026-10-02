@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pilot Evidence Passport</title>
+<link rel="stylesheet" href="assets/app.css">
 <style>
   :root { --ink: #111; --muted: #5b5b5b; --line: #d6d6d6; --soft: #f4f4f4; --ok: #146c2e; --bad: #a3141b; --warn: #8a5a00; }
   * { box-sizing: border-box; }
@@ -15,10 +16,18 @@
   #preview { background: #fff4d6; padding: .5rem .75rem; }
   .controls { position: sticky; top: 0; z-index: 2; background: #fff; border-bottom: 1px solid var(--line); padding: .75rem 0; margin-top: .75rem; }
   .row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
-  button, select { font: inherit; padding: .45rem .8rem; border: 1px solid var(--ink); background: #fff; color: var(--ink); border-radius: 4px; cursor: pointer; }
-  button.primary { background: var(--ink); color: #fff; }
-  button:disabled { opacity: .45; cursor: not-allowed; }
-  label.role { font-weight: 600; }
+  #acting { margin-right: .25rem; }
+  .actions { border: 2px solid var(--ink); border-radius: 6px; padding: .8rem .9rem; margin-top: 1rem; }
+  .actions h2 { margin-bottom: .2rem; }
+  .actions form { border-top: 1px solid var(--line); padding-top: .6rem; margin-top: .8rem; max-width: 42rem; }
+  .actions h3 { font-size: 1rem; margin: 0; }
+  .actions .choice { display: flex; gap: 1rem; flex-wrap: wrap; font-weight: 400; }
+  .actions .choice label { font-weight: 400; display: flex; gap: .35rem; align-items: center; margin: 0; }
+  .actions .choice input { width: auto; }
+  .actions button { margin-top: .8rem; }
+  .ms-row { display: grid; grid-template-columns: 2fr 2fr minmax(9.5rem, 1fr) minmax(6rem, 1fr); gap: .4rem; margin-top: .4rem; }
+  .ms-row input { min-width: 0; }
+  @media (max-width: 40rem) { .ms-row { grid-template-columns: 1fr 1fr; padding-bottom: .5rem; border-bottom: 1px dashed var(--line); } }
   #next { margin-top: .6rem; background: var(--soft); padding: .6rem .75rem; border-left: 3px solid var(--ink); }
   #next p { margin: .2rem 0 0; color: var(--muted); }
   #status { min-height: 1.4em; margin: .4rem 0 0; font-size: .9rem; }
@@ -57,7 +66,7 @@
   @media print {
     html { font-size: 11.5px; }
     body { max-width: none; padding: 0; font-size: 11.5px; }
-    .controls, #preview, #empty-state { display: none !important; }
+    .controls, #preview, #empty-state, #actions { display: none !important; }
     section.card { border-color: #999; }
     .rail li.now { background: #fff; color: #000; border-width: 2px; font-weight: 700; }
     @page { size: A4; margin: 14mm 12mm; }
@@ -66,7 +75,7 @@
 </head>
 <body>
 <p id="preview" hidden><b>Work-in-progress preview.</b> This host has no backend, so the demo cannot load here. Open it on the Vercel app.</p>
-<p class="notice">Simulated demonstration data — not an official government record.</p>
+<p class="notice" id="notice">Simulated demonstration data — not an official government record.</p>
 
 <header>
   <h1>Pilot Evidence Passport</h1>
@@ -75,11 +84,12 @@
 
 <div class="controls">
   <div class="row">
-    <label class="role" for="role">Acting as</label>
-    <select id="role"></select>
-    <button id="load">Load demo scenario</button>
-    <button id="advance" class="primary">Advance to next stage</button>
-    <button id="reset">Reset demo</button>
+    <span id="acting"></span>
+    <span class="row" id="demo-buttons">
+      <button id="load">Load demo scenario</button>
+      <button id="advance" class="primary">Advance to next stage</button>
+      <button id="reset">Reset demo</button>
+    </span>
     <button id="to-audit">View audit timeline</button>
     <button id="print">Download Evidence Passport</button>
   </div>
@@ -87,7 +97,9 @@
   <p id="status" role="status"></p>
 </div>
 
-<p id="empty-state" class="muted">No demo is loaded. Press <b>Load demo scenario</b> to seed the district-hospital OPD pilot at <i>Draft</i>, then walk it forward with <b>Advance to next stage</b>, switching role when a step asks for it.</p>
+<section id="actions" class="actions" hidden></section>
+
+<p id="empty-state" class="muted" hidden>No demo is loaded. Press <b>Load demo scenario</b> to seed the district-hospital OPD pilot at <i>Draft</i>, then walk it forward with <b>Advance to next stage</b>, switching role when a step asks for it.</p>
 
 <main id="passport" hidden>
   <ol class="rail" id="rail" aria-label="Passport state"></ol>
@@ -100,87 +112,103 @@
   </section>
 </main>
 
+<script src="assets/app.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
-const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const esc = App.esc;
 const inr = (n) => n == null ? "" : "₹" + (Number(n) / 1e5).toLocaleString("en-IN", { maximumFractionDigits: 2 }) + " L";
 const when = (t) => t ? new Date(t).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "";
 const date = (d) => d ? `<span class="date">${esc(d)}</span>` : "";
 const short = (h) => h ? `<code title="${esc(h)}">${esc(h.slice(0, 16))}…</code>` : "";
 
-const STATIC_HOST = /(^|\.)leninjacobregi\.me$|\.github\.io$/.test(location.hostname);
-$("preview").hidden = !STATIC_HOST;
+// No ?id= is the seeded demo; ?id=<record> is a real pilot.
+const ID = new URLSearchParams(location.search).get("id");
+const DEMO = !ID;
+$("preview").hidden = !App.STATIC_HOST;
 
-let data = null, busy = false;
-const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
-                set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+let data = null, me = null, busy = false, stopWatch = null, watching = null, quietUntil = 0, actionsKey = null;
+const hasPassport = () => !!data?.passport;
+const roleLabel = (id) => App.ROLE[id] ?? id;
 
-async function call(method, body) {
-  if (STATIC_HOST) throw new Error("this preview host has no backend.");
-  const res = await fetch("/api/demo", {
-    method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body),
-  });
-  if (!res.headers.get("content-type")?.includes("application/json")) throw new Error("the backend isn't reachable from this address.");
-  const out = await res.json();
-  if (!res.ok) { const e = new Error(out.error || "request failed"); e.body = out; throw e; }
-  return out;
-}
+const fetchData = () => App.api(DEMO ? "/api/demo" : `/api/passports?id=${encodeURIComponent(ID)}`);
+const post = (body) => App.api(DEMO ? "/api/demo" : "/api/passports", { method: "POST", body: DEMO ? body : { id: ID, ...body } });
 
-async function act(body, done) {
+async function act(fn, done) {
   if (busy) return;
   busy = true; paintControls(); say("Working…");
+  quietUntil = Date.now() + 4000; // our own change: no toast for it
   try {
-    data = await call("POST", body);
+    const out = await fn();
+    if (out) data = out;
     say(done ? done() : "");
+    actionsKey = null;
   } catch (err) {
     say(err.message, true);
-    if (err.body?.loaded !== undefined) data = err.body;
+    if (err.body?.passport || err.body?.loaded !== undefined) data = err.body;
   }
   busy = false; paint();
 }
-
 function say(msg, err) { $("status").textContent = msg || ""; $("status").className = err ? "err" : ""; }
-const role = () => $("role").value;
-const roleLabel = (id) => data?.roles.find((r) => r.id === id)?.label ?? id;
 
-$("load").onclick = () => act({ action: "load" }, () => "Demo loaded at Draft.");
-$("reset").onclick = () => act({ action: "reset" }, () => "Demo removed. Nothing simulated is left in the database.");
-$("advance").onclick = () => act({ action: "advance", role: role() }, () => `Done: ${data.audit.at(-1)?.action}.`);
+// Changing the demo needs a demo session; start as the Programme Administrator if there is none.
+async function demoSession() {
+  if (!me?.is_demo) me = await App.signInDemo("admin");
+}
+$("load").onclick = () => act(async () => { await demoSession(); return post({ action: "load" }); }, () => "Demo loaded at Draft.");
+$("reset").onclick = () => act(async () => { await demoSession(); return post({ action: "reset" }); }, () => "Demo removed. Nothing simulated is left in the database.");
+$("advance").onclick = () => act(() => post({ action: "advance" }), () => `Done: ${data.audit.at(-1)?.action}.`);
 $("to-audit").onclick = () => $("audit").scrollIntoView({ behavior: "smooth" });
 $("print").onclick = () => window.print();
-$("role").onchange = () => { store.set("passport.role", role()); paintControls(); };
 
 function paintControls() {
-  const loaded = !!data?.loaded, next = data?.next;
-  $("advance").disabled = busy || !loaded || !next || next.role !== role();
-  for (const id of ["load", "reset", "print", "to-audit"]) $(id).disabled = busy || (!loaded && id !== "load");
-  $("load").textContent = loaded ? "Reload demo scenario" : "Load demo scenario";
+  $("acting").innerHTML = me ? `Acting as <b>${esc(roleLabel(me.role))}</b>${me.is_demo ? " (demo)" : ""}`
+    : `<a href="login.html?next=${encodeURIComponent("passport.html" + location.search)}">Sign in</a>`;
+  $("demo-buttons").hidden = !DEMO;
+  for (const id of ["print", "to-audit"]) $(id).disabled = busy || !hasPassport();
   const box = $("next");
-  box.hidden = !loaded;
+  box.hidden = !DEMO || !data?.loaded;
+  if (!DEMO) return;
+  const loaded = !!data?.loaded, next = data?.next;
+  $("advance").disabled = busy || !loaded || !next || !me?.is_demo || next.role !== me.role;
+  $("load").disabled = busy;
+  $("reset").disabled = busy || !loaded;
+  $("load").textContent = loaded ? "Reload demo scenario" : "Load demo scenario";
   if (!loaded) return;
   if (!next) { box.innerHTML = `<b>Demo complete.</b><p>The passport is ${esc(data.record.passport_state)}. Download it, or reload to walk it again.</p>`; return; }
-  const mine = next.role === role();
+  const mine = me?.is_demo && next.role === me.role;
   box.innerHTML = `<b>Step ${next.step} of ${data.total_steps} · ${esc(roleLabel(next.role))}:</b> ${esc(next.action)}
     <p>${esc(next.note)}</p>
-    ${mine ? "" : `<p>This step belongs to the ${esc(roleLabel(next.role))}. <button id="switch">Switch to ${esc(roleLabel(next.role))}</button></p>`}`;
-  if (!mine) $("switch").onclick = () => { $("role").value = next.role; store.set("passport.role", next.role); paintControls(); };
+    ${mine ? "" : `<p>This step belongs to the ${esc(roleLabel(next.role))}. <button id="switch">Switch to ${esc(roleLabel(next.role))} (demo)</button></p>`}`;
+  if (!mine) $("switch").onclick = () => act(async () => { me = await App.signInDemo(next.role); }, () => `Now acting as the ${roleLabel(next.role)}.`);
+}
+
+// Live: other people's actions arrive as audit events; show them and redraw.
+function watchLive() {
+  const id = data?.record?.id;
+  if (!id || id === watching) return;
+  stopWatch?.();
+  watching = id;
+  stopWatch = App.watch(id, async (e) => {
+    if (Date.now() > quietUntil) App.toast(`${e.actor_role}: ${e.action}`);
+    if (busy) return;
+    try { data = await fetchData(); paint(); } catch {}
+  });
 }
 
 function paint() {
-  if (data && !$("role").options.length) {
-    $("role").innerHTML = data.roles.map((r) => `<option value="${r.id}">${esc(r.label)}</option>`).join("");
-    const saved = store.get("passport.role");
-    $("role").value = data.roles.some((r) => r.id === saved) ? saved : data.roles[0].id;
-  }
   paintControls();
-  const loaded = !!data?.loaded;
-  $("empty-state").hidden = loaded;
+  const loaded = hasPassport();
+  $("notice").hidden = !DEMO;
+  $("empty-state").hidden = !DEMO || loaded;
   $("passport").hidden = !loaded;
+  paintActions();
   if (!loaded) return;
+  watchLive();
 
   const { passport: p, challenge: c, record: r } = data;
-  $("subtitle").textContent = `${c.pr_id} · ${data.title} · ${c.department}, ${c.district}`;
-  document.title = `Pilot Evidence Passport · ${c.pr_id}`;
+  const place = [c.department, c.district].filter(Boolean).join(", ");
+  $("subtitle").textContent = DEMO ? `${c.pr_id} · ${data.title} · ${place}` : `${c.kpi_name} · ${place}`;
+  document.title = `Pilot Evidence Passport · ${DEMO ? c.pr_id : c.kpi_name}`;
 
   const at = data.states.indexOf(r.passport_state);
   $("rail").innerHTML = data.states.map((s, i) =>
@@ -241,29 +269,30 @@ const SECTIONS = [
     ["Reversibility", esc(p.risk.reversibility)], ["Exit cost", esc(p.risk.exit_cost)],
     ["Total cap", inr(p.risk.cap_inr)], ["Relaxation", esc(p.risk.relaxation)],
   ])],
-  [5, "Startup", "Pilot active", (p) => !p.screening ? "" :
-    `<p class="why"><b>Screening</b> — every result carries its reason.</p>`
-    + table(["Applicant", "Result", "Why"], p.screening.map((s) => [esc(s.name), `<span class="${tone(s.result)}">${esc(s.result)}</span>`, `<span class="why">${esc(s.why)}</span>`]))
+  [5, "Startup", "Pilot active", (p) => !p.screening && !p.startup ? "" :
+    (p.screening ? `<p class="why"><b>Screening</b> — every result carries its reason.</p>`
+      + table(["Applicant", "Result", "Why"], p.screening.map((s) => [esc(s.name), `<span class="${tone(s.result)}">${esc(s.result)}</span>`, `<span class="why">${esc(s.why)}</span>`])) : "")
     + (p.evaluation ? `<p class="why" style="margin-top:.6rem"><b>Panel scores</b> — ${esc(p.evaluation.weights)}</p>`
       + table(["Startup", "Score", "Reason"], p.evaluation.scores.map((s) => [esc(s.name), `<b>${s.total}</b>`, `<span class="why">${esc(s.why)}</span>`]))
       + `<p class="why">Dissent: ${esc(p.evaluation.dissent)}</p>` : "")
-    + (p.startup ? `<p style="margin:.6rem 0 .3rem"><b>Selected: ${esc(p.startup.name)}</b>, ${esc(p.startup.location)}${p.startup.first_government_supplier ? " · first government supplier" : ""}</p>`
-      + dl([["DPIIT", esc(p.startup.verification.dpiit)], ["Udyam", esc(p.startup.verification.udyam)], ["GST", esc(p.startup.verification.gst)],
-            ["Capability", esc(p.startup.capability)], ["Prior evidence", esc(p.startup.prior_evidence)]]) : ""), true],
+    + (p.startup ? `<p style="margin:.6rem 0 .3rem"><b>Selected: ${esc(p.startup.name)}</b>${p.startup.location ? `, ${esc(p.startup.location)}` : ""}${p.startup.first_government_supplier ? " · first government supplier" : ""}</p>`
+      + dl([["Contact", esc(p.startup.contact)], ["DPIIT", esc(p.startup.verification?.dpiit)], ["Udyam", esc(p.startup.verification?.udyam)],
+            ["GST", esc(p.startup.verification?.gst)], ["Capability", esc(p.startup.capability)], ["Prior evidence", esc(p.startup.prior_evidence)]]) : ""), true],
   [6, "Pilot design", "Pilot active", (p) => p.design && dl([
     ["Scope", esc(p.design.scope)], ["Sandbox", esc(p.design.sandbox)], ["Data access", esc(p.design.data_access)],
     ["IP", esc(p.design.ip)], ["Cybersecurity", esc(p.design.cybersecurity)], ["Pilot fee", inr(p.design.fee_inr)],
   ]), true],
-  [7, "Milestones", "Pilot active", (p) => table(["#", "Milestone", "Evidence expected", "Due", "Amount", "State"],
+  [7, "Milestones", "Pilot active", (p) => p.milestones.length > 0 && table(["#", "Milestone", "Evidence expected", "Due", "Amount", "State"],
     p.milestones.map((m) => [m.n, esc(m.title), `<span class="why">${esc(m.evidence_expected)}</span>`, date(m.due), inr(m.amount_inr),
       `<span class="${tone(m.state)}">${esc(m.state)}</span>`])), true],
-  [8, "Evidence", "Pilot active", (p) => p.evidence.length && table(["M", "Artefact", "Source", "SHA-256", "Submitted"],
-    p.evidence.map((e) => [e.milestone, esc(e.title), `<span class="why">${esc(e.source)}</span>`, short(e.sha256), when(e.submitted_at)])), true],
+  [8, "Evidence", "Pilot active", (p) => p.evidence.length && table(["M", "Artefact", "Source", "SHA-256", "Submitted", ""],
+    p.evidence.map((e) => [e.milestone, esc(e.title), `<span class="why">${esc(e.source)}</span>`, short(e.sha256), when(e.submitted_at),
+      e.file_id && me && me.role !== "public" ? `<a href="/api/evidence?id=${esc(e.file_id)}">Download</a>` : ""])), true],
   [9, "Validation", "Independently validated", (p, c, r) => p.validation && (
     `<p><b class="ok">${esc(p.validation.result)}</b></p>`
     + table(["KPI", "Baseline", "Achieved", "Target", ""], p.validation.kpis.map((k) => [esc(k.kpi), esc(k.baseline), `<b>${esc(k.achieved)}</b>`, esc(k.target), k.met ? `<span class="ok">✓ met</span>` : `<span class="bad">✗ missed</span>`]))
     + dl([["Method", esc(p.validation.method)],
-          ["Effect", r.delta != null ? `${esc(Number(r.delta))} ${esc(c.kpi_unit)} (95% CI ${esc(Number(r.ci_low))} to ${esc(Number(r.ci_high))})` : ""],
+          ["Effect", r.delta != null ? `${esc(Number(r.delta))} ${esc(c.kpi_unit)}${r.ci_low != null ? ` (95% CI ${esc(Number(r.ci_low))} to ${esc(Number(r.ci_high))})` : ""}` : ""],
           ["Exceptions", esc(p.validation.exceptions)],
           ["Weekly median", data.readings.map((x) => esc(Number(x.kpi_value))).join(" → ")],
           ["Attested by", data.signatures.map((s) => `${esc(s.signer_name)}, ${esc(s.signer_role)} · ${when(s.signed_at)}${s.dissent_note ? ` · dissent: ${esc(s.dissent_note)}` : ""}`).join("<br>")]])), true],
@@ -272,7 +301,7 @@ const SECTIONS = [
       p.milestones.map((m) => { const y = m.payment; return [m.n, inr(m.amount_inr), `<span class="${tone(y.state)}">${esc(y.state)}</span>`,
         date(y.packet_complete_on), date(y.expected_by), date(y.paid_on),
         y.delay_reason ? `<span class="why">${y.delay_days ? `${y.delay_days} days · ` : ""}${esc(y.delay_reason)}${y.grievance_clock ? ` · grievance ${esc(y.grievance_clock)}` : ""}</span>` : ""]; }))
-    + `<p class="why">Paid ${inr(p.milestones.filter((m) => /paid/.test(m.payment.state)).reduce((a, m) => a + m.amount_inr, 0))} of ${inr(p.milestones.reduce((a, m) => a + m.amount_inr, 0))}. Scenario dates; no treasury or PFMS link.</p>`), true],
+    + `<p class="why">Paid ${inr(p.milestones.filter((m) => /paid/.test(m.payment.state)).reduce((a, m) => a + m.amount_inr, 0))} of ${inr(p.milestones.reduce((a, m) => a + m.amount_inr, 0))}. ${DEMO ? "Scenario dates; no" : "Recorded by the Finance / Procurement Officer; no"} treasury or PFMS link.</p>`), true],
   [11, "Procurement", "Procurement-ready", (p) => p.procurement && (
     `<p class="why"><b>Facts</b></p><ul class="plain">${p.procurement.facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>`
     + `<p><b class="ok">Accepted: ${esc(p.procurement.accepted.route)}</b><br><span class="why">${esc(p.procurement.accepted.basis)} ${esc(p.procurement.accepted.next)}</span></p>`
@@ -293,7 +322,121 @@ const SECTIONS = [
   ])],
 ];
 
-call("GET").then((d) => { data = d; paint(); }).catch((err) => { say("Could not load: " + err.message, true); paintControls(); });
+// ---- real pilots: the forms for whatever this account can do next ----------------------
+
+const MIME = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", csv: "text/csv", txt: "text/plain",
+  json: "application/json", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+const MAX_FILE = 3 * 1024 * 1024;
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const msSelect = (a) => `<label>Milestone <select name="milestone" required>${a.milestones.map((m) => `<option value="${m.n}">${m.n}. ${esc(m.title)}</option>`).join("")}</select></label>`;
+const msRow = () => `<div class="ms-row"><input data-k="title" placeholder="Milestone" aria-label="Milestone title" required>
+  <input data-k="evidence_expected" placeholder="Evidence expected" aria-label="Evidence expected" required>
+  <input data-k="due" type="date" aria-label="Due date" required><input data-k="amount_inr" inputmode="numeric" placeholder="₹ amount" aria-label="Amount in rupees" required></div>`;
+
+const FORMS = {
+  verify_baseline: () => `<p class="why">Re-derive the baseline from its source before anything is published. Nothing can be sealed until this is done.</p>
+    <label>What you checked, and what you found * <textarea name="result" rows="2" required></textarea></label>
+    <button class="primary">Mark the baseline verified</button>`,
+  seal: () => `<p class="why">This hashes the baseline, target and KPI with SHA-256 and publishes the hash. Change any of them afterwards and the seal breaks — the validator will refuse to attest.</p>
+    <button class="primary">Seal and publish</button>`,
+  award: (a) => a.startups.length ? `<label>Startup <select name="startup_user_id" required>${a.startups.map((u) => `<option value="${u.id}">${esc(u.org || u.name)}${u.org ? ` (${esc(u.name)})` : ""}</option>`).join("")}</select></label>
+    <label>Scope * <input name="scope" required placeholder="One OPD, 90 days, staff-facing only"></label>
+    <label>Data access * <input name="data_access" required placeholder="Pseudonymised timestamps only"></label>
+    <label>IP terms <input name="ip" placeholder="Startup keeps product IP; department keeps the data"></label>
+    <label>Milestones * <span class="hint">title · evidence expected · due · amount (₹). 1 to 8.</span></label>
+    <div class="ms">${msRow()}${msRow()}</div>
+    <button type="button" class="add-ms">+ Add milestone</button>
+    <br><button class="primary">Award the pilot</button>`
+    : `<p class="muted">No startup accounts exist yet. Create one with <code>npm run user:add -- --role startup …</code></p>`,
+  upload_evidence: (a) => `${msSelect(a)}
+    <label>What this is * <input name="title" required maxlength="200" placeholder="Access-log extract, days 1–20"></label>
+    <label>File * <span class="hint">PDF, image, CSV, text, JSON, Excel or Word · up to 3 MB · hashed on upload</span>
+      <input name="file" type="file" required accept=".pdf,.png,.jpg,.jpeg,.csv,.txt,.json,.xlsx,.docx"></label>
+    <button class="primary">Submit evidence</button>`,
+  review_milestone: (a) => `${msSelect(a)}
+    <div class="choice" role="radiogroup" aria-label="Decision" style="margin-top:.6rem">
+      <label><input type="radio" name="decision" value="accept" required> Accept</label>
+      <label><input type="radio" name="decision" value="return"> Return for more evidence</label></div>
+    <label>Note <span class="hint">required when returning</span> <textarea name="note" rows="2"></textarea></label>
+    <button class="primary">Record decision</button>`,
+  record_payment: (a) => `${msSelect(a)}
+    <div class="choice" role="radiogroup" aria-label="Outcome" style="margin-top:.6rem">
+      <label><input type="radio" name="outcome" value="paid" required> Paid</label>
+      <label><input type="radio" name="outcome" value="delayed"> Delayed</label></div>
+    <label>Paid on <input name="paid_on" type="date" value="${todayIso()}"></label>
+    <label>Delay reason <span class="hint">required when delayed; stays on the record</span> <input name="delay_reason"></label>
+    <button class="primary">Record payment</button>`,
+  attest: () => `<p class="why">The seal is recomputed first. If the criteria moved since they were sealed, this is refused and the refusal is logged.</p>
+    <label>Achieved value of ${esc(data.challenge.kpi_name)} * <input name="achieved" inputmode="decimal" required></label>
+    <label>Method * <textarea name="method" rows="2" required placeholder="How the achieved value was measured and compared"></textarea></label>
+    <label>Exceptions <textarea name="exceptions" rows="2"></textarea></label>
+    <label>Dissent <textarea name="dissent" rows="2"></textarea></label>
+    <button class="primary">Validate and sign</button>`,
+};
+
+function paintActions() {
+  const box = $("actions");
+  box.hidden = DEMO || !hasPassport();
+  if (box.hidden) return;
+  const acts = data.actions ?? [];
+  // Redraw only when what you can do changes, so a live update never wipes a half-filled form.
+  const key = JSON.stringify([me?.id, data.record.passport_state, acts]);
+  if (key === actionsKey) return;
+  actionsKey = key;
+  if (!acts.length) {
+    box.innerHTML = `<h2>Your next action</h2><p class="muted">${!me ? "Sign in to act on this pilot."
+      : me.is_demo ? "Demo accounts can't act on real pilots."
+      : `Nothing for the ${esc(roleLabel(me.role))} to do while the passport is <i>${esc(data.record.passport_state)}</i>. You'll see it here the moment that changes.`}</p>`;
+    return;
+  }
+  box.innerHTML = `<h2>Your next action${acts.length > 1 ? "s" : ""}</h2>`
+    + acts.map((a) => `<form data-action="${a.name}"><h3>${esc(a.label)}</h3>${FORMS[a.name](a)}</form>`).join("");
+  for (const f of box.querySelectorAll("form")) {
+    f.onsubmit = submitAction;
+    f.querySelector(".add-ms")?.addEventListener("click", () => {
+      const ms = f.querySelector(".ms");
+      if (ms.children.length < 8) ms.insertAdjacentHTML("beforeend", msRow());
+    });
+  }
+}
+
+const base64 = (file) => new Promise((ok, no) => {
+  const r = new FileReader();
+  r.onload = () => ok(String(r.result).split(",")[1] ?? "");
+  r.onerror = () => no(r.error);
+  r.readAsDataURL(file);
+});
+
+async function submitAction(e) {
+  e.preventDefault();
+  const f = e.target, action = f.dataset.action;
+  const body = { action, ...Object.fromEntries([...new FormData(f)].filter(([k]) => k !== "file")) };
+  if (action === "award") {
+    body.milestones = [...f.querySelectorAll(".ms-row")].map((row) =>
+      Object.fromEntries([...row.querySelectorAll("[data-k]")].map((i) => [i.dataset.k, i.value])));
+  }
+  if (action === "upload_evidence") {
+    const file = f.file.files[0];
+    if (!file) return say("Choose a file.", true);
+    if (file.size > MAX_FILE) return say("Files are limited to 3 MB.", true);
+    body.mime = Object.values(MIME).includes(file.type) ? file.type : MIME[file.name.split(".").pop().toLowerCase()];
+    if (!body.mime) return say("That file type isn't accepted.", true);
+    body.filename = file.name;
+    body.data = await base64(file);
+  }
+  act(() => post(body), () => `Done: ${data.audit.at(-1)?.action}.`);
+}
+
+(async () => {
+  try {
+    me = await App.user();
+    App.nav();
+    if (!DEMO && !me) { location.href = `login.html?next=${encodeURIComponent("passport.html" + location.search)}`; return; }
+    data = await fetchData();
+  } catch (err) { say("Could not load: " + err.message, true); }
+  paint();
+})();
 </script>
 </body>
 </html>

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pilots</title>
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; margin-top: .8rem; }
+  th, td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-size: .82rem; }
+  .state { white-space: nowrap; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>Pilots</h1>
+<p class="muted">Every real pilot's Evidence Passport, most recently active first.</p>
+<div id="out"></div>
+<script src="assets/app.js"></script>
+<script>
+const out = document.getElementById("out");
+(async () => {
+  const me = await App.user();
+  App.nav();
+  if (!me) { out.innerHTML = `<p><a href="login.html?next=pilots.html">Sign in</a> to see pilots, or open the <a href="passport.html">demo passport</a>.</p>`; return; }
+  if (me.is_demo) { out.innerHTML = `<p>Demo accounts only see the <a href="passport.html">demo passport</a>. Real pilots need a real account.</p>`; return; }
+  try {
+    const { passports } = await App.api("/api/passports");
+    const create = me.role === "department" ? `<p><a href="index.html">Create a challenge →</a></p>` : "";
+    out.innerHTML = create + (passports.length ? `<div class="scroll"><table><thead><tr><th>Challenge</th><th>Department</th><th>Startup</th><th>State</th><th>Last activity</th></tr></thead><tbody>
+      ${passports.map((p) => `<tr><td><a href="passport.html?id=${p.id}">${App.esc(p.kpi_name)}</a><br><span class="muted">${App.esc(p.outcome_statement)}</span></td>
+        <td>${App.esc(p.department)}${p.district ? `, ${App.esc(p.district)}` : ""}</td><td>${App.esc(p.startup ?? "—")}</td>
+        <td class="state">${App.esc(p.passport_state)}</td>
+        <td>${p.last_activity ? new Date(p.last_activity).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : ""}</td></tr>`).join("")}
+      </tbody></table></div>` : `<p class="muted">No pilots yet.</p>`);
+  } catch (err) { out.innerHTML = `<p class="err">${App.esc(err.message)}</p>`; }
+})();
+</script>
+</body>
+</html>

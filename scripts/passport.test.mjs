@@ -12,13 +12,20 @@ if (url) {
 }
 const skip = !url && "set TEST_DATABASE_URL to run";
 const { db } = await import("../api/_lib.js");
-const { scenario, loadDemo, resetDemo, advanceDemo, getDemo, StepRefused } = await import("../api/_passport.js");
+const { scenario, loadDemo, resetDemo, advanceDemo, getDemo } = await import("../api/_passport.js");
+const { demoUser } = await import("../api/_auth.js");
 
-before(async () => { if (url) await resetDemo(); });
+// One demo account per role, as the "Try a demo role" buttons make them.
+const as = {};
+before(async () => {
+  if (!url) return;
+  await resetDemo();
+  for (const r of scenario.roles) as[r.id] = await demoUser(r.id, r.name);
+});
 after(async () => { if (url) { await resetDemo(); await db().end(); } });
 
 const walk = async (upTo = scenario.steps.length) => {
-  for (const step of scenario.steps.slice(0, upTo)) await advanceDemo(step.role);
+  for (const step of scenario.steps.slice(0, upTo)) await advanceDemo(as[step.role]);
 };
 
 test("load seeds the scenario at Draft with one audit event", { skip }, async () => {
@@ -33,7 +40,8 @@ test("load seeds the scenario at Draft with one audit event", { skip }, async ()
 
 test("the wrong role is refused and nothing changes", { skip }, async () => {
   await loadDemo();
-  await assert.rejects(advanceDemo("startup"), (e) => e instanceof StepRefused && e.status === 403 && e.extra.required_role === "admin");
+  await assert.rejects(advanceDemo(as.startup), (e) => e.status === 403 && e.extra.required_role === "admin");
+  await assert.rejects(advanceDemo({ ...as.admin, is_demo: false }), (e) => e.status === 403);
   const d = await getDemo();
   assert.equal(d.record.demo_step, 0);
   assert.equal(d.audit.length, 1);
@@ -54,7 +62,7 @@ test("walking every step reaches Replication-ready with seal and chain intact", 
   assert.equal(d.readings.length, 13);
   assert.equal(d.signatures.length, 1);
   assert.equal(Number(d.record.adoption_pct), 83);
-  await assert.rejects(advanceDemo("admin"), (e) => e.status === 409);
+  await assert.rejects(advanceDemo(as.admin), (e) => e.status === 409);
 });
 
 test("changing the criteria after the seal stops the validator", { skip }, async () => {
@@ -62,7 +70,7 @@ test("changing the criteria after the seal stops the validator", { skip }, async
   const validate = scenario.steps.findIndex((s) => s.op === "verify_seal");
   await walk(validate);
   await db().query("update challenges set baseline_value = 80 where pr_id = $1 and is_simulated", [scenario.id]);
-  const out = await advanceDemo("validator");
+  const out = await advanceDemo(as.validator);
   assert.match(out.refused, /changed after publication/);
   const d = await getDemo();
   assert.equal(d.seal.intact, false);
@@ -75,7 +83,9 @@ test("the audit log refuses edits, and a forged row breaks the chain", { skip },
   await loadDemo();
   await walk(3);
   await assert.rejects(db().query("update audit_events set action = 'x'"), /append-only/);
-  const { rows: [r] } = await db().query("select record_id, hash from audit_events order by id desc limit 1");
+  const { rows: [r] } = await db().query(
+    `select a.record_id, a.hash from audit_events a join records r on r.id = a.record_id
+       join challenges c on c.id = r.challenge_id where c.is_simulated order by a.id desc limit 1`);
   // Even an insert that skips the app can't fake a valid link.
   await db().query(
     `insert into audit_events (record_id, at, actor_role, actor_name, action, is_simulated, prev_hash, hash)
@@ -86,7 +96,9 @@ test("the audit log refuses edits, and a forged row breaks the chain", { skip },
 
 test("non-simulated audit events cannot be deleted", { skip }, async () => {
   await loadDemo();
-  const { rows: [r] } = await db().query("select record_id from audit_events limit 1");
+  const { rows: [r] } = await db().query(
+    `select a.record_id from audit_events a join records r on r.id = a.record_id
+       join challenges c on c.id = r.challenge_id where c.is_simulated limit 1`);
   await db().query(
     `insert into audit_events (record_id, at, actor_role, actor_name, action, is_simulated, hash)
      values ($1, now(), 'x', 'x', 'real', false, 'h')`, [r.record_id]);
@@ -106,6 +118,7 @@ test("reset removes every simulated row", { skip }, async () => {
   assert.equal((await getDemo()).loaded, false);
   const { rows: [n] } = await db().query(
     `select (select count(*) from challenges where pr_id = $1)::int as challenges,
-            (select count(*) from audit_events)::int as events`, [scenario.id]);
+            (select count(*) from audit_events a join records r on r.id = a.record_id
+               join challenges c on c.id = r.challenge_id where c.is_simulated)::int as events`, [scenario.id]);
   assert.deepEqual(n, { challenges: 0, events: 0 });
 });

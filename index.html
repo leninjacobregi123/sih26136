@@ -4,9 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compose a challenge</title>
+<link rel="stylesheet" href="assets/app.css">
 <style>
   body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 0 auto; padding: 1rem; }
   label { display: block; margin-top: .75rem; font-weight: 600; }
+  #signin { background: var(--soft); padding: .5rem .75rem; }
   input, textarea { width: 100%; box-sizing: border-box; font: inherit; padding: .4rem; }
   fieldset { margin-top: 1rem; }
   #gate-why { color: #777; margin: .5rem 0; }
@@ -19,6 +21,7 @@
 <p id="preview" hidden><b>Work-in-progress preview.</b> The form and its baseline gate are real; saving is not connected on this host yet.</p>
 <h1>Compose a challenge</h1>
 <p><a href="passport.html">See a whole pilot as an Evidence Passport (demo) →</a></p>
+<p id="signin" hidden></p>
 
 <form id="composer">
   <label>Department * <input name="department" required></label>
@@ -37,57 +40,68 @@
     <label>Baseline method * <textarea name="baseline_method" rows="2" placeholder="How the number was measured" data-gate></textarea></label>
   </fieldset>
 
+  <fieldset>
+    <legend>Target: sealed with the baseline before any pilot starts</legend>
+    <label>Direction *
+      <select name="target_direction" data-gate>
+        <option value="">Choose…</option>
+        <option value="decrease">Bring the KPI down to (or below) the target</option>
+        <option value="increase">Bring the KPI up to (or above) the target</option>
+      </select></label>
+    <label>Target value * <input name="target_value" inputmode="decimal" data-gate></label>
+  </fieldset>
+
   <label>Comparison unit <input name="comparison_unit" placeholder="Ward 12 (no deployment)"></label>
   <label>Duration (days) <input name="duration_days" inputmode="numeric"></label>
 
   <!-- TODO: replace this sentence with Jones's (M5) copy JSON when it lands (tomorrow 11:00). -->
-  <p id="gate-why">You can't submit yet. Without a baseline value, where it came from and how it was measured, there is nothing to compare the pilot against.</p>
+  <p id="gate-why">You can't submit yet. Without a baseline value, where it came from, how it was measured and a target, there is nothing to compare the pilot against.</p>
   <button type="submit" id="submit" disabled>Submit challenge</button>
   <p id="status" role="status"></p>
 </form>
 
+<script src="assets/app.js"></script>
 <script>
   const form = document.getElementById("composer");
   const submit = document.getElementById("submit");
   const why = document.getElementById("gate-why");
   const status = document.getElementById("status");
   const gate = [...form.querySelectorAll("[data-gate]")];
+  let allowed = false;
 
-  // GitHub Pages serves this file with no /api behind it.
-  const STATIC_HOST = /(^|\.)leninjacobregi\.me$|\.github\.io$/.test(location.hostname);
-  document.getElementById("preview").hidden = !STATIC_HOST;
+  document.getElementById("preview").hidden = !App.STATIC_HOST;
 
   function checkGate() {
     const open = gate.every((el) => el.value.trim() !== "");
-    submit.disabled = !open;
+    submit.disabled = !open || !allowed;
     why.hidden = open;
   }
   form.addEventListener("input", checkGate);
-  checkGate();
+
+  App.user().then((me) => {
+    App.nav();
+    allowed = me?.role === "department" && !me.is_demo;
+    const box = document.getElementById("signin");
+    box.hidden = allowed || App.STATIC_HOST;
+    box.innerHTML = me
+      ? `Only a Department Officer's account can create a challenge. You are signed in as ${App.esc(App.ROLE[me.role])}${me.is_demo ? " (demo)" : ""}.`
+      : `<a href="login.html?next=index.html">Sign in</a> as a Department Officer to create a challenge.`;
+    checkGate();
+  });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     submit.disabled = true;
     status.textContent = "Saving…";
     try {
-      if (STATIC_HOST) throw new Error("this is the preview; saving goes live with the backend deploy.");
-      const res = await fetch("/api/challenges", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(Object.fromEntries(new FormData(form))),
-      });
-      if (!res.headers.get("content-type")?.includes("application/json")) {
-        throw new Error("the backend isn't reachable from this address.");
-      }
-      const out = await res.json();
-      if (!res.ok) throw new Error(out.missing ? "Missing: " + out.missing.join(", ") : out.error);
-      status.textContent = "Saved. Challenge id " + out.id;
-      form.reset();
+      const out = await App.api("/api/challenges", { method: "POST", body: Object.fromEntries(new FormData(form)) });
+      location.href = "passport.html?id=" + out.record_id;
     } catch (err) {
-      status.textContent = "Not saved: " + err.message;
+      status.textContent = "Not saved: " + (err.body?.missing ? "Missing: " + err.body.missing.join(", ") : err.message);
+      checkGate();
     }
-    checkGate();
   });
+  checkGate();
 </script>
 </body>
 </html>

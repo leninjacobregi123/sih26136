@@ -21,12 +21,20 @@ scripts/seed-records.mjs    loads Jones's (M5) CSV and embeds each record with l
 db/schema.sql               item 3 — pgvector + the four tables (safe to re-run)
 api/challenges.js           item 4 — POST refuses without baseline value/source/method
 index.html                  item 4 — the composer; submit disabled until the three are filled
-passport.html               phase 1 — the Pilot Evidence Passport demo: roles, advance, audit, print
-api/demo.js                 GET the demo passport; POST load / reset / advance (role-checked)
-api/_passport.js            seal (SHA-256), step engine, hash-chained audit log
+passport.html               a passport: the demo (no ?id) or a real pilot (?id=), with its action forms
+pilots.html, login.html     every real pilot; sign in (real account, or a one-click demo role)
+assets/app.js, app.css      shared: API calls, session, nav bar, live notifications
+api/auth.js, _auth.js       sign in / out; scrypt passwords, HMAC-signed HttpOnly session cookie
+api/passports.js            list passports; read one with your available actions; run an action
+api/_actions.js             the real workflow: who may do what, in which state, with what input
+api/evidence.js             download an evidence file (signed in, not Public Viewer)
+api/events.js               live audit events for a passport (server-sent events)
+api/demo.js                 GET the demo passport; POST load / reset / advance (demo accounts)
+api/_passport.js            seal (SHA-256), hash-chained audit log, the demo's step engine
 shared/demo/opd-scenario.json the seeded OPD pilot: 7 roles, 10 states, 16 steps (edit content here)
 scripts/dev.mjs             npm run dev — the pages and api/ locally, like Vercel
-scripts/passport.test.mjs   npm test — needs TEST_DATABASE_URL (a scratch database)
+scripts/add-user.mjs        npm run user:add — create a real account (prints a generated password)
+scripts/*.test.mjs          npm test — 14 tests; needs TEST_DATABASE_URL (a scratch database)
 ```
 
 ## Team
@@ -83,8 +91,40 @@ labelled as simulated on the page.
 ```
 npm run db:init                                  # adds audit_events + passport columns
 npm run dev                                      # http://localhost:3000/passport.html
-TEST_DATABASE_URL=postgresql://... npm test       # 7 tests; use a scratch database
+TEST_DATABASE_URL=postgresql://... npm test       # use a scratch database
 ```
+
+## Accounts and real pilots (phase 2)
+
+There is no sign-up page. Real accounts are made from this folder, one per person:
+```
+npm run user:add -- --email officer@example.gov.in --role department --name "A. Officer" --org "Public Health, Nagpur"
+```
+Roles: `department admin startup evaluator validator finance public`. It prints a generated
+password once. To end someone's access: `update users set active = false where email = '…'`
+(their session stops on the next request). Demo roles on the sign-in page need no password and
+can only touch the simulated demo; real accounts can't change the demo's steps.
+
+A real pilot moves like this, each step by one role, checked on the server and written to the
+audit log with the passport in one transaction:
+
+| Step | Who | Moves to |
+|---|---|---|
+| Create the challenge (composer: baseline + target) | Department Officer | Draft |
+| Verify the baseline | Programme Administrator | Baseline verified |
+| Seal the criteria (SHA-256) | Department Officer | Criteria sealed |
+| Award: startup account, scope, data access, 1–8 paid milestones | Programme Administrator | Pilot active |
+| Submit evidence files (≤ 3 MB, hashed, never editable) | the awarded Startup only | — |
+| Accept or return each milestone | Department Officer | Evidence submitted, once all are accepted |
+| Record each payment: paid, or delayed with a reason | Finance / Procurement Officer | — |
+| Recompute the seal, then attest met / missed | Independent Validator | Independently validated |
+
+Procurement, deployment, adoption and replication are phases 3–4. Anyone with the passport open
+sees other people's actions arrive live (a notification and a redraw).
+
+**Before deploying this:** add `SESSION_SECRET` (32+ random characters, see `.env.example`) to
+`.env.local` and to Vercel (`vercel env add SESSION_SECRET production`), and run
+`npm run db:init` against Supabase — the health check expects the new tables.
 
 ## Embeddings: local, not an API
 

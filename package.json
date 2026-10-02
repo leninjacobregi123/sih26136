@@ -7,11 +7,12 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "test": "node --test scripts/passport.test.mjs",
+    "test": "node --test --test-concurrency=1 scripts/passport.test.mjs scripts/pilot.test.mjs",
     "smoke": "node scripts/smoke.mjs",
     "db:init": "node scripts/db-init.mjs",
     "seed": "node scripts/seed-records.mjs",
-    "supabase:setup": "node scripts/supabase-setup.mjs"
+    "supabase:setup": "node scripts/supabase-setup.mjs",
+    "user:add": "node scripts/add-user.mjs"
   },
   "dependencies": {
     "openai": "^7.23.0",
