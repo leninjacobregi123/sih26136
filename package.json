@@ -7,16 +7,23 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "test": "node --test --test-concurrency=1 scripts/passport.test.mjs scripts/pilot.test.mjs scripts/phase3.test.mjs scripts/phase4.test.mjs scripts/sample.test.mjs",
+    "test": "node --test --test-concurrency=1 scripts/passport.test.mjs scripts/pilot.test.mjs scripts/phase3.test.mjs scripts/phase4.test.mjs scripts/sample.test.mjs scripts/api-ui.test.mjs",
     "smoke": "node scripts/smoke.mjs",
     "db:init": "node scripts/db-init.mjs",
     "seed": "node scripts/seed-records.mjs",
     "supabase:setup": "node scripts/supabase-setup.mjs",
     "user:add": "node scripts/add-user.mjs",
-    "seed:programme": "node scripts/seed-programme.mjs"
+    "seed:programme": "node scripts/seed-programme.mjs",
+    "build:assets": "node scripts/build-assets.mjs",
+    "test:ui": "node --test --test-concurrency=1 scripts/ui.test.mjs"
   },
   "dependencies": {
     "openai": "^7.23.0",
     "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "axe-core": "^4.13.0",
+    "lucide-static": "^1.50.0"
   }
 }

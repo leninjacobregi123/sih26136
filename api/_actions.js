@@ -20,27 +20,39 @@ export const FILE_TYPES = {
 };
 
 // ---- input checks ----------------------------------------------------------
-const bad = (msg) => new HttpError(422, msg);
-function text(v, name, { max = 2000, optional = false } = {}) {
+// A 422 names the input it is about (`field`, the request key), so a form can mark it.
+const bad = (msg, field) => new HttpError(422, msg, field ? { field } : {});
+const FIELD_OF = { "IP terms": "ip", cap: "cap_inr", "planned start": "start_date", "achieved value": "achieved",
+  "weekly active staff": "weekly_active", "would keep using": "survey_would_keep", "annual cost": "annual_cost_inr",
+  "operational cost": "operational_cost_inr", "file type": "file" };
+const MILESTONE_KEY = { title: "title", evidence: "evidence_expected", "due date": "due", amount: "amount_inr" };
+function fieldOf(name) {
+  if (FIELD_OF[name]) return FIELD_OF[name];
+  const m = String(name).match(/^milestone (\d+) (title|evidence|due date|amount)$/);
+  if (m) return `milestones.${m[1] - 1}.${MILESTONE_KEY[m[2]]}`;
+  if (/^score for /.test(name)) return "scores";
+  return String(name).replace(/[\s-]+/g, "_");
+}
+function text(v, name, { max = 2000, optional = false, field = fieldOf(name) } = {}) {
   const s = typeof v === "string" ? v.trim() : "";
-  if (!s && !optional) throw bad(`${name} is required`);
-  if (s.length > max) throw bad(`${name} is longer than ${max} characters`);
+  if (!s && !optional) throw bad(`${name} is required`, field);
+  if (s.length > max) throw bad(`${name} is longer than ${max} characters`, field);
   return s || null;
 }
-function num(v, name, { min = -Infinity } = {}) {
+function num(v, name, { min = -Infinity, field = fieldOf(name) } = {}) {
   const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
-  if (!Number.isFinite(n) || n < min) throw bad(`${name} must be a number${min > -Infinity ? ` ≥ ${min}` : ""}`);
+  if (!Number.isFinite(n) || n < min) throw bad(`${name} must be a number${min > -Infinity ? ` ≥ ${min}` : ""}`, field);
   return n;
 }
-function date(v, name) {
+function date(v, name, { field = fieldOf(name) } = {}) {
   const d = typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v) : null;
   if (!d || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v) {
-    throw bad(`${name} must be a date (YYYY-MM-DD)`);
+    throw bad(`${name} must be a date (YYYY-MM-DD)`, field);
   }
   return v;
 }
-function oneOf(v, name, options) {
-  if (!options.includes(v)) throw bad(`${name} must be one of: ${options.join(", ")}`);
+function oneOf(v, name, options, { field = fieldOf(name) } = {}) {
+  if (!options.includes(v)) throw bad(`${name} must be one of: ${options.join(", ")}`, field);
   return v;
 }
 export const isUuid = (v) => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
@@ -49,7 +61,7 @@ const targetText = (c) => `${c.target_direction === "decrease" ? "≤" : "≥"} 
 
 function milestoneOf(passport, v, states) {
   const m = passport.milestones.find((x) => x.n === Number(v));
-  if (!m) throw bad("no such milestone");
+  if (!m) throw bad("no such milestone", "milestone");
   if (states && !states.includes(m.state)) throw new HttpError(409, `Milestone ${m.n} is ${m.state}.`);
   return m;
 }
@@ -61,14 +73,14 @@ function validateChallenge(user, body) {
   const v = {};
   for (const f of CHALLENGE_FIELDS) v[f] = typeof body[f] === "number" ? String(body[f]) : text(body[f], f, { optional: true });
   for (const f of ["department", "outcome_statement", "kpi_name", ...BASELINE_GATE]) {
-    if (!v[f]) throw bad(`${f} is required`);
+    if (!v[f]) throw bad(`${f} is required`, f);
   }
   v.baseline_value = num(body.baseline_value, "baseline_value");
   if (v.duration_days != null) v.duration_days = num(body.duration_days, "duration_days", { min: 1 });
   v.target_value = num(body.target_value, "target_value");
   v.target_direction = oneOf(body.target_direction, "target_direction", ["decrease", "increase"]);
   if (v.target_direction === "decrease" ? v.target_value >= v.baseline_value : v.target_value <= v.baseline_value) {
-    throw bad(`a target to ${v.target_direction} must be ${v.target_direction === "decrease" ? "below" : "above"} the baseline`);
+    throw bad(`a target to ${v.target_direction} must be ${v.target_direction === "decrease" ? "below" : "above"} the baseline`, "target_value");
   }
   return v;
 }
@@ -84,9 +96,9 @@ export async function createChallenge(user, body) {
   return withTx(async (client) => {
     const fields = [...CHALLENGE_FIELDS, "target_value", "target_direction"];
     const ch = await client.query(
-      `insert into challenges (${fields.join(", ")}, created_by)
-       values (${fields.map((_, i) => `$${i + 1}`).join(", ")}, $${fields.length + 1}) returning id`,
-      [...fields.map((f) => v[f]), user.id]);
+      `insert into challenges (${fields.join(", ")}, created_by, created_at)
+       values (${fields.map((_, i) => `$${i + 1}`).join(", ")}, $${fields.length + 1}, $${fields.length + 2}) returning id`,
+      [...fields.map((f) => v[f]), user.id, nowIso()]);
     const passport = {
       identity: { owner: [user.name, user.org].filter(Boolean).join(", "), created_by: user.name },
       baseline: { verified: false },
@@ -97,8 +109,8 @@ export async function createChallenge(user, body) {
       procurement: null, deployment: null, adoption: null, replication: null,
     };
     const rec = await client.query(
-      `insert into records (challenge_id, status, is_synthetic, passport_state, passport)
-       values ($1, 'running', false, $2, $3) returning id`, [ch.rows[0].id, STATES[0], passport]);
+      `insert into records (challenge_id, status, is_synthetic, passport_state, passport, created_at)
+       values ($1, 'running', false, $2, $3, $4) returning id`, [ch.rows[0].id, STATES[0], passport, nowIso()]);
     await appendEvent(client, rec.rows[0].id, user, "Created the challenge",
       { state: STATES[0], quality_findings: quality.defects.length, quality_model: quality.model ?? "not run" });
     return { id: ch.rows[0].id, record_id: rec.rows[0].id };
@@ -115,7 +127,7 @@ export const ACTIONS = {
       const result = text(input.result, "result");
       if (passport.quality) {
         if (input.quality_ack !== true && input.quality_ack !== "on") {
-          throw bad("read the quality report and confirm it before verifying");
+          throw bad("read the quality report and confirm it before verifying", "quality_ack");
         }
         passport.quality.reviewed = { by: user.name, at: nowIso(), findings: passport.quality.defects.length };
       }
@@ -166,12 +178,12 @@ export const ACTIONS = {
     run({ passport, user }, input) {
       const shortlist = new Map(passport.screening.candidates.filter((c) => c.result !== "rejected").map((c) => [c.user_id, c.name]));
       const scores = (Array.isArray(input.scores) ? input.scores : []).map((x) => {
-        if (!shortlist.has(x?.user_id)) throw bad("score only startups on the shortlist");
+        if (!shortlist.has(x?.user_id)) throw bad("score only startups on the shortlist", "scores");
         const score = num(x.score, `score for ${shortlist.get(x.user_id)}`, { min: 0 });
-        if (score > 100 || !Number.isInteger(score)) throw bad("scores are whole numbers from 0 to 100");
+        if (score > 100 || !Number.isInteger(score)) throw bad("scores are whole numbers from 0 to 100", "scores");
         return { user_id: x.user_id, name: shortlist.get(x.user_id), score, note: text(x.note, "note", { max: 500, optional: true }) };
       });
-      if (scores.length !== shortlist.size) throw bad("score every startup on the shortlist");
+      if (scores.length !== shortlist.size) throw bad("score every startup on the shortlist", "scores");
       const entry = { evaluator: user.name, evaluator_id: user.id, at: nowIso(), scores,
         dissent: text(input.dissent, "dissent", { max: 1000, optional: true }) };
       passport.evaluation ??= { panel: [] };
@@ -186,11 +198,11 @@ export const ACTIONS = {
     allowed: (rec) => !!rec.passport.screening,
     refuse: [409, "Screen startups before awarding: the hard filters decide who may be chosen."],
     async run({ client, passport }, input) {
-      if (!isUuid(input.startup_user_id)) throw bad("choose a startup account");
+      if (!isUuid(input.startup_user_id)) throw bad("choose a startup account", "startup_user_id");
       const { rows: [startup] } = await client.query(
         "select id, name, org from users where id = $1 and role = 'startup' and active and not is_demo",
         [input.startup_user_id]);
-      if (!startup) throw bad("choose a startup account");
+      if (!startup) throw bad("choose a startup account", "startup_user_id");
       // The hard filters bind: a startup screened out cannot be awarded.
       const screened = passport.screening.candidates.find((c) => c.user_id === startup.id);
       if (!screened) throw new HttpError(409, `${startup.org || startup.name} was not part of the screening. Screen again first.`);
@@ -198,7 +210,7 @@ export const ACTIONS = {
         throw new HttpError(409, `${screened.name} was rejected at screening: ${screened.hard.filter((h) => !h.pass && !h.soft).map((h) => h.why).join(" ")}`);
       }
       const ms = Array.isArray(input.milestones) ? input.milestones : [];
-      if (ms.length < 1 || ms.length > 8) throw bad("a pilot needs 1 to 8 milestones");
+      if (ms.length < 1 || ms.length > 8) throw bad("a pilot needs 1 to 8 milestones", "milestones");
       passport.milestones = ms.map((m, i) => ({
         n: i + 1,
         title: text(m.title, `milestone ${i + 1} title`, { max: 200 }),
@@ -239,10 +251,10 @@ export const ACTIONS = {
       const m = milestoneOf(passport, input.milestone, ["planned", "evidence submitted", "returned"]);
       const title = text(input.title, "title", { max: 200 });
       const mime = oneOf(input.mime, "file type", Object.keys(FILE_TYPES));
-      if (typeof input.data !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(input.data)) throw bad("file data must be base64");
+      if (typeof input.data !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(input.data)) throw bad("file data must be base64", "file");
       const bytes = Buffer.from(input.data, "base64");
-      if (!bytes.length) throw bad("the file is empty");
-      if (bytes.length > MAX_FILE_BYTES) throw bad("files are limited to 3 MB");
+      if (!bytes.length) throw bad("the file is empty", "file");
+      if (bytes.length > MAX_FILE_BYTES) throw bad("files are limited to 3 MB", "file");
       const filename = String(input.filename ?? "").split(/[\\/]/).pop().replace(/[^\w.\- ()]/g, "_").slice(0, 120)
         || `evidence.${FILE_TYPES[mime]}`;
       const hash = sha256(bytes);
@@ -289,8 +301,8 @@ export const ACTIONS = {
         return { action: `Recorded milestone ${m.n} payment as delayed`, detail: { reason: m.payment.delay_reason } };
       }
       const paidOn = date(input.paid_on, "paid on");
-      if (paidOn < m.payment.packet_complete_on) throw bad("paid on can't be before the packet was complete");
-      if (paidOn > today()) throw bad("paid on can't be in the future");
+      if (paidOn < m.payment.packet_complete_on) throw bad("paid on can't be before the packet was complete", "paid_on");
+      if (paidOn > today()) throw bad("paid on can't be in the future", "paid_on");
       const late = m.payment.expected_by && paidOn > m.payment.expected_by
         ? Math.round((Date.parse(paidOn) - Date.parse(m.payment.expected_by)) / 86400000) : 0;
       m.payment = { ...m.payment, state: late || m.payment.state === "delayed" ? "paid late" : "paid", paid_on: paidOn,
@@ -322,8 +334,8 @@ export const ACTIONS = {
         attestation: `Signed by ${user.name}`,
       };
       await client.query(
-        "insert into signatures (record_id, signer_name, signer_role, dissent_note) values ($1, $2, $3, $4)",
-        [rec.id, user.name, ROLES.validator, dissent]);
+        "insert into signatures (record_id, signer_name, signer_role, dissent_note, signed_at) values ($1, $2, $3, $4, $5)",
+        [rec.id, user.name, ROLES.validator, dissent, nowIso()]);
       return {
         action: met ? "Attested: met the sealed criteria" : "Attested: missed the sealed criteria",
         to: "Independently validated",
@@ -401,7 +413,7 @@ Object.assign(ACTIONS, {
     refuse: [409, "Approve the procurement route first."],
     run({ passport }, input) {
       const goLive = date(input.go_live, "go-live");
-      if (goLive > today()) throw bad("record the deployment once it has gone live");
+      if (goLive > today()) throw bad("record the deployment once it has gone live", "go_live");
       passport.deployment = {
         order: text(input.order_reference, "order reference", { max: 200 }),
         route: passport.procurement.accepted.route,
@@ -418,15 +430,15 @@ Object.assign(ACTIONS, {
     role: "department", states: ["Deployed", "Adoption measured"], label: "Record an adoption measurement",
     async run({ client, rec, passport }, input) {
       const measuredOn = date(input.measured_on, "measured on");
-      if (measuredOn > today()) throw bad("measured on can't be in the future");
-      if (measuredOn < passport.deployment.go_live) throw bad("measure after the go-live date");
+      if (measuredOn > today()) throw bad("measured on can't be in the future", "measured_on");
+      if (measuredOn < passport.deployment.go_live) throw bad("measure after the go-live date", "measured_on");
       const trained = num(input.staff_trained, "staff trained", { min: 0 });
       const active = num(input.weekly_active, "weekly active staff", { min: 0 });
-      if (active > trained) throw bad("weekly active staff can't exceed staff trained");
+      if (active > trained) throw bad("weekly active staff can't exceed staff trained", "weekly_active");
       const respondents = num(input.survey_respondents ?? 0, "survey respondents", { min: 0 });
       const keep = respondents ? num(input.survey_would_keep, "would keep using", { min: 0 }) : 0;
-      if (keep > respondents) throw bad("more staff would keep it than answered the survey");
-      const kpiNow = num(input.kpi_value, `${rec.kpi_name} now`);
+      if (keep > respondents) throw bad("more staff would keep it than answered the survey", "survey_would_keep");
+      const kpiNow = num(input.kpi_value, `${rec.kpi_name} now`, { field: "kpi_value" });
       const m = {
         measured_on: measuredOn,
         days_since_go_live: Math.round((Date.parse(measuredOn) - Date.parse(passport.deployment.go_live)) / 86400000),
@@ -470,7 +482,7 @@ Object.assign(ACTIONS, {
         next_review: decision === "hold" ? date(input.next_review, "next review") : (input.next_review ? date(input.next_review, "next review") : null),
         note: text(input.note, "note", { max: 1000, optional: true }),
       };
-      if (review.next_review && review.next_review <= today()) throw bad("the next review must be in the future");
+      if (review.next_review && review.next_review <= today()) throw bad("the next review must be in the future", "next_review");
       passport.replication = { ...review, history: [...(passport.replication?.history ?? []), review] };
       const to = decision === "replicate" ? "Replication-ready" : decision === "learning record" ? LEARNING : undefined;
       return { action: decision === "replicate" ? "Recommended for replication" : decision === "hold" ? "Held for another measurement" : "Closed as a learning record",
@@ -521,6 +533,25 @@ export async function runAction(user, recordId, name, input, opts = {}) {
 // What this user could do to this passport right now, with the choices a form needs.
 export async function availableActions(user, bundle) {
   if (!user || user.is_demo || bundle.challenge.is_simulated || bundle.sample) return [];
+  return openActions(user, bundle);
+}
+
+// What the pilot is waiting on, and from whom: the open actions for each role (the startup
+// role means the awarded startup). Shown to everyone, including on read-only sample pilots.
+export async function pendingActions(bundle) {
+  if (bundle.challenge.is_simulated) return [];
+  const out = [];
+  for (const role of ["admin", "department", "evaluator", "startup", "validator", "finance"]) {
+    const user = { role, id: role === "startup" ? bundle.record.startup_user_id : null, is_demo: false };
+    if (role === "startup" && !user.id) continue;
+    for (const a of await openActions(user, bundle)) {
+      out.push({ action: a.name, label: a.label, role, role_label: ROLES[role], milestones: a.milestones?.map((m) => m.n) });
+    }
+  }
+  return out;
+}
+
+async function openActions(user, bundle) {
   const { record: rec, passport: p } = bundle;
   const ms = (states) => p.milestones.filter((m) => states.includes(m.state)).map((m) => ({ n: m.n, title: m.title }));
   const out = [];

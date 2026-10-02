@@ -1,0 +1,62 @@
+/* Print: the passport as a complete document. Every tab panel prints, in order, with its
+   heading; the app chrome, forms and live controls do not. Light theme regardless of the
+   screen theme. */
+@media print {
+  :root, :root[data-theme="dark"] {
+    color-scheme: light;
+    --bg: #fff; --surface: #fff; --surface-2: #f4f5f7; --surface-3: #e8ebef; --border: #c9ced6; --border-strong: #9aa3b0;
+    --text: #000; --text-2: #1f2937; --text-3: #4b5563; --accent: #1f56d1; --accent-text: #1c4fc0; --accent-soft: #eef2fb;
+    --success: #0f5f30; --success-soft: #eef7f1; --warning: #7a3f00; --warning-soft: #fdf3e3; --danger: #9b1c14; --danger-soft: #fcefee;
+    --shadow-1: none; --shadow-2: none; --shadow-3: none;
+  }
+  @page { size: A4; margin: 14mm 12mm; }
+  html, body { background: #fff !important; font-size: 11px; }
+  .shell { display: block; }
+  .sidebar, .topbar, .site-footer, .banners .no-print, .toasts, .rail, .demo-bar, .tabs, .no-print, dialog, .skip-link, .page-actions { display: none !important; }
+  .page { max-width: none; padding: 0; }
+  .with-rail, .passport-body { display: block; }
+  /* Long cards may flow across pages; small things stay whole. */
+  .card { box-shadow: none; break-inside: auto; }
+  .fact, .alert, .file-row, .tl-item, .kv > dt, .kv > dd, tr, .bar-row, .checks li, .review-row { break-inside: avoid; }
+  .card-header { padding: 6px 10px; break-after: avoid; }
+  .card-header h2 { font-size: 12px; }
+  .card-body { padding: 8px 10px; }
+  .card-sub { font-size: 9.5px; }
+  .stack > * + * { margin-top: 6px; }
+  .stack-lg > * + * { margin-top: 10px; }
+  .kv { gap: 3px 10px; font-size: 10.5px; grid-template-columns: minmax(90px, 26%) 1fr !important; }
+  .kv dd { margin: 0 !important; }
+  .table { font-size: 10px; }
+  .table th, .table td { padding: 4px 8px; }
+  .page-head { margin-bottom: 8px; }
+  h1 { font-size: 18px !important; }
+  .lede { font-size: 10.5px; margin-top: 2px; }
+  .pill { height: 18px; padding: 0 7px; font-size: 9px; }
+  /* Wide layouts, whatever the paper width says. */
+  .grid-2 { grid-template-columns: 1fr 1fr !important; gap: 8px; }
+  .facts { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; gap: 6px; margin-bottom: 8px; }
+  .fact { padding: 6px 8px; }
+  .fact-value { font-size: 14px; }
+  .stepper { grid-auto-flow: column !important; grid-auto-columns: minmax(0, 1fr) !important; }
+  .step { grid-template-columns: none !important; justify-items: center !important; text-align: center !important; padding: 0 1px !important; gap: 3px !important; }
+  .step::before { top: 9px !important; left: calc(-50% + 11px) !important; right: calc(50% + 11px) !important; width: auto !important; height: 2px !important; }
+  .step .marker { width: 20px; height: 20px; }
+  .step .step-label { font-size: 8.5px !important; }
+  .step .step-date { display: block !important; font-size: 8px; }
+  .tl-item { padding-bottom: 6px; grid-template-columns: 24px 1fr; }
+  .tl-item::before { left: 11px; top: 26px; }
+  .avatar { width: 24px; height: 24px; font-size: 9px; }
+  .timeline-day { margin: 8px 0 4px; }
+  .hash button, figure.chart details, #live { display: none !important; }
+  .cand-head { padding: 6px 10px; }
+  .cand-body { padding: 6px 10px 8px; }
+  .alert { padding: 6px 10px; }
+  .tab-panel[hidden] { display: block !important; }
+  .tab-panel { padding-top: 0; }
+  .tab-panel::before { content: attr(data-title); display: block; font-size: 15px; font-weight: 700; margin: 14px 0 8px; border-bottom: 1px solid #9aa3b0; padding-bottom: 4px; }
+  details > *:not(summary) { display: block !important; }
+  a { color: inherit; text-decoration: none; }
+  .print-only { display: block !important; }
+  .stepper { break-inside: avoid; }
+}
+.print-only { display: none; }

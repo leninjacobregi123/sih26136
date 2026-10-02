@@ -1,50 +1,80 @@
-# Pilot register — Day 1 backend
+# GovStart Bridge — pilot register
 
-A small Vercel app: `index.html` (the composer) + `api/*.js` (plain Node functions).
-No framework, no build step. This repo is the one codebase: the app at the root, and the static pitch
-walkthrough (formerly `govstart-bridge`) in `pitch/` — its site is `pitch/docs/`. `pitch/` is not uploaded to Vercel.
+The working app: static pages and modules (`*.html`, `assets/`) plus plain Node functions (`api/*.js`) on
+Vercel, Postgres on Supabase. No framework and no build step. This repo is the one codebase: the app at the
+root, and the static pitch walkthrough (formerly `govstart-bridge`) in `pitch/`, which is not uploaded to Vercel.
 
-**Roadmap:** [APPLICATION_UPDATE.md](APPLICATION_UPDATE.md). `main` / tag `final-v1` is the submitted
-implementation; new work happens on `v2-updates` and merges to `main` only when it works.
-
-**Preview (static, no saving):** https://leninjacobregi.me/sih26136/
-**Full app (form saves, APIs live):** after the Vercel deploy below.
+**Live:** https://sih26136.vercel.app · **Roadmap:** [APPLICATION_UPDATE.md](APPLICATION_UPDATE.md) · tag `final-v1`
+is the first submitted implementation.
 
 ```
-shared/record_schema.csv    item 1 — header + one example row
-shared/defect_taxonomy.json Pranjal's (M3) 7 defect classes for the A1 critique (tomorrow). Advisory only, never blocks.
-shared/POST_TO_GROUP.md     item 1 — the message to paste with the link
-scripts/check_records.py    item 1 — checks Jones's (M5) 40 rows against every rule
-api/health.js               item 2 — GET /api/health?apis=1 calls the LLM from the deployed host
-api/similar.js              GET /api/similar?id=PR-2026-0001 — the 5 nearest stored records
-scripts/seed-records.mjs    loads Jones's (M5) CSV and embeds each record with local Ollama
-db/schema.sql               item 3 — pgvector + the four tables (safe to re-run)
-api/challenges.js           item 4 — POST refuses without baseline value/source/method
-index.html                  item 4 — the composer; submit disabled until the three are filled
-passport.html               a passport: the demo (no ?id) or a real pilot (?id=), with its action forms
-pilots.html, login.html     every real pilot; sign in (real account, or a one-click demo role)
-profile.html                a startup's profile: what screening reads (self-declared)
-ledger.html                 public payments ledger: per department, against the payment SLA
-dashboard.html              public programme dashboard: pipeline, results vs baseline, adoption, routes
-assets/app.js, app.css      shared: API calls, session, nav bar, live notifications
+index.html, *.html          thin pages: <head>, an empty #app, one module from assets/js/pages/
+assets/css/                 tokens (light + dark, contrast-checked), base, components, layout, print
+assets/js/core/             html`` (escaped by default), api client, session, live events, formatting, roles
+assets/js/ui/               shell, dialogs/drawers, tabs, fields, toasts, pills, charts, CSV, icons
+assets/js/pages/            one module per page; pilot/ holds the passport's tabs and action forms
+assets/icons.svg, fonts/    Lucide sprite and Inter, built from dev dependencies by npm run build:assets
+vercel.json                 clean URLs, rewrites, redirects from the old pages, security headers, region
 api/auth.js, _auth.js       sign in / out; scrypt passwords, HMAC-signed HttpOnly session cookie
-api/passports.js            list passports; read one with your available actions; run an action
-api/_actions.js             the real workflow: who may do what, in which state, with what input
-api/evidence.js             download an evidence file (signed in, not Public Viewer)
-api/profile.js              a startup's own profile
-api/programme.js            public aggregates for the ledger and dashboard (no sign-in, no names)
+api/passports.js            list pilots (with what each waits on), activity feed, one passport, run an action
+api/_actions.js             the workflow: who may do what, in which state, with what input; 422s name their field
+api/demo.js                 the guided demo: GET it; POST load / reset / advance (demo accounts)
+api/_passport.js            seal (SHA-256), hash-chained audit log, the demo's step engine
 api/_quality.js             quality gate: rule checks + the model over Pranjal's defect taxonomy
 api/_matching.js            hard filters with counterfactuals, then a score on published weights
 api/_procurement.js         procurement route compiler (Tier 1/2/3 rules) and payment SLA status
-shared/policy.json          programme policy: payment SLA, deeming GR, match weights
+api/programme.js            public aggregates and anonymous rows for the dashboard and ledger
+api/challenges.js           create a challenge (or check its quality first)
+api/evidence.js, profile.js evidence downloads; a startup's own profile
 api/events.js               live audit events for a passport (server-sent events)
-api/demo.js                 GET the demo passport; POST load / reset / advance (demo accounts)
-api/_passport.js            seal (SHA-256), hash-chained audit log, the demo's step engine
-shared/demo/opd-scenario.json the seeded OPD pilot: 7 roles, 10 states, 16 steps (edit content here)
-scripts/dev.mjs             npm run dev — the pages and api/ locally, like Vercel
+api/health.js, similar.js   health check; the 5 nearest stored records by embedding
+api/_clock.js               the time actions are recorded at (only the sample seed sets it)
+db/schema.sql               all tables, safe to re-run (npm run db:init)
+shared/policy.json          programme policy: payment SLA, deeming GR, match weights, adoption threshold
+shared/demo/opd-scenario.json the guided demo: 7 roles, 10 states, 16 steps (edit content here)
+shared/defect_taxonomy.json Pranjal's 7 defect classes for the quality gate
+scripts/dev.mjs             npm run dev — pages and api/ locally, routed by vercel.json like production
 scripts/add-user.mjs        npm run user:add — create a real account (prints a generated password)
 scripts/seed-programme.mjs  npm run seed:programme — the fictional sample programme (11 pilots)
-scripts/*.test.mjs          npm test — 33 tests; needs TEST_DATABASE_URL (a scratch database)
+scripts/*.test.mjs          npm test — 37 API tests; npm run test:ui — 4 UI tests in headless Chrome
+scripts/ui/cdp.mjs          the small DevTools-protocol driver the UI tests use
+```
+
+## The interface
+
+| URL | What | Who |
+|---|---|---|
+| `/` | a short landing page, or **My work**: what is waiting on you across every pilot | anyone |
+| `/pilots` | every pilot; search, filters and sort kept in the URL | signed in |
+| `/pilots/new` | the five-step challenge wizard, with the quality check on Review | Department Officer |
+| `/pilots/:id` | the Pilot Evidence Passport: stepper, key facts, eight tabs, the next step, integrity | signed in |
+| `/demo` | the guided demo on the same passport | anyone |
+| `/programme`, `/programme/payments` | public dashboard and payments ledger, filterable, CSV export | anyone |
+| `/sign-in`, `/profile` | sign in or try a demo role; a startup's profile | — |
+
+The old addresses (`passport.html?id=`, `dashboard.html`, `ledger.html`, `login.html`) redirect.
+
+- **Design system.** Tokens in `assets/css/tokens.css`: every text colour pair is WCAG AA in both
+  themes and every control border is 3:1 (computed, not eyeballed). Light, dark, or system,
+  switched in the account menu; a tiny head script applies it before first paint.
+- **Forms.** Every action opens a drawer form. Required fields are checked in the browser; anything
+  the server refuses comes back with the field it is about and lands on that input. Seal, award,
+  attest, route compile and approval, and replication review end in a confirm step. Evidence is
+  hashed in the browser before upload and checked against the server's hash.
+- **Live.** An open passport shows other people's actions as they happen and redraws, never under an
+  open form.
+- **Print.** "Download PDF" prints the whole passport: every tab, in order, compact.
+- **Security.** No inline script anywhere, so the CSP allows scripts from this site only; all markup
+  goes through the `html` template tag, which escapes data by default; CSV exports neutralise spreadsheet formulas.
+- **Accessibility.** Landmarks, skip link, keyboard tabs (arrows, Home/End), drawers that trap focus
+  and return it, a combobox search ("/" focuses it), labelled fields with linked errors. The UI tests
+  run axe on every page, light and dark, desktop and phone.
+
+```
+npm run dev                                   # http://localhost:3000
+TEST_DATABASE_URL=postgresql://... npm test   # API tests (scratch database)
+TEST_DATABASE_URL=postgresql://... npm run test:ui   # UI tests: needs Google Chrome
+npm run build:assets                          # after changing the icon list or upgrading Inter/Lucide
 ```
 
 ## Team
@@ -85,11 +115,11 @@ scripts/*.test.mjs          npm test — 33 tests; needs TEST_DATABASE_URL (a sc
 
 ## Evidence Passport demo (phase 1 of APPLICATION_UPDATE.md)
 
-`passport.html` walks one seeded pilot (district-hospital OPD waiting time) from Draft to
-Replication-ready in 16 steps, in about ten minutes. **Load demo scenario**, then
-**Advance to next stage**; each step belongs to one of seven roles, and the server refuses it
-from any other (the role switch is a demo control, not a login: that is phase 2).
-**Download Evidence Passport** prints it to PDF. **Reset demo** removes every simulated row.
+`/demo` walks one seeded pilot (district-hospital OPD waiting time) from Draft to
+Replication-ready in 16 steps, in about ten minutes. **Load the demo scenario**, then **Advance**;
+each step belongs to one of seven roles (**Switch to …** signs in as that role's demo account), and
+the server refuses it from any other. **Download PDF** prints the passport. **Clear the demo**
+removes every simulated row.
 
 What is real, not staged: the SHA-256 seal over the baseline and KPI targets (stored in
 `challenges.lock_hash`), the validator recomputing it before attesting (change a target after
@@ -100,7 +130,7 @@ labelled as simulated on the page.
 
 ```
 npm run db:init                                  # adds audit_events + passport columns
-npm run dev                                      # http://localhost:3000/passport.html
+npm run dev                                      # http://localhost:3000/demo
 TEST_DATABASE_URL=postgresql://... npm test       # use a scratch database
 ```
 

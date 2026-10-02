@@ -3,122 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Compose a challenge</title>
-<link rel="stylesheet" href="assets/app.css">
-<style>
-  body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 0 auto; padding: 1rem; }
-  label { display: block; margin-top: .75rem; font-weight: 600; }
-  #signin { background: var(--soft); padding: .5rem .75rem; }
-  input, textarea { width: 100%; box-sizing: border-box; font: inherit; padding: .4rem; }
-  fieldset { margin-top: 1rem; }
-  #gate-why { color: #777; margin: .5rem 0; }
-  #preview { background: #fff4d6; padding: .5rem .75rem; }
-  #status { margin-top: .75rem; }
-  #quality ul { padding-left: 1.1rem; }
-  #quality .why { color: var(--muted); font-size: .9rem; }
-  button { font: inherit; padding: .5rem 1rem; margin-top: 1rem; }
-</style>
+<title>GovStart Bridge — pilot register</title>
+<meta name="description" content="Seal a baseline, run a controlled pilot, validate it independently and buy it lawfully: the Pilot Evidence Passport.">
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0f16" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+<script src="/assets/js/theme.js"></script>
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/layout.css">
+<link rel="stylesheet" href="/assets/css/print.css">
+<script type="module" src="/assets/js/pages/home.js"></script>
 </head>
 <body>
-<p id="preview" hidden><b>Work-in-progress preview.</b> The form and its baseline gate are real; saving is not connected on this host yet.</p>
-<h1>Compose a challenge</h1>
-<p><a href="passport.html">See a whole pilot as an Evidence Passport (demo) →</a></p>
-<p id="signin" hidden></p>
-
-<form id="composer">
-  <label>Department * <input name="department" required></label>
-  <label>Sector <input name="sector"></label>
-  <label>District <input name="district"></label>
-  <label>Outcome statement * <textarea name="outcome_statement" rows="2" required></textarea></label>
-  <label>KPI name * <input name="kpi_name" required></label>
-  <label>KPI unit <input name="kpi_unit" placeholder="hours, %, cases per week"></label>
-  <label>KPI definition <textarea name="kpi_definition" rows="2"></textarea></label>
-
-  <fieldset>
-    <legend>Baseline: required before this challenge can exist</legend>
-    <label>Baseline value * <input name="baseline_value" inputmode="decimal" data-gate></label>
-    <label>Baseline window <input name="baseline_window" placeholder="Apr-Jun 2026"></label>
-    <label>Baseline source * <input name="baseline_source" placeholder="PMC grievance system export" data-gate></label>
-    <label>Baseline method * <textarea name="baseline_method" rows="2" placeholder="How the number was measured" data-gate></textarea></label>
-  </fieldset>
-
-  <fieldset>
-    <legend>Target: sealed with the baseline before any pilot starts</legend>
-    <label>Direction *
-      <select name="target_direction" data-gate>
-        <option value="">Choose…</option>
-        <option value="decrease">Bring the KPI down to (or below) the target</option>
-        <option value="increase">Bring the KPI up to (or above) the target</option>
-      </select></label>
-    <label>Target value * <input name="target_value" inputmode="decimal" data-gate></label>
-  </fieldset>
-
-  <label>Comparison unit <input name="comparison_unit" placeholder="Ward 12 (no deployment)"></label>
-  <label>Duration (days) <input name="duration_days" inputmode="numeric"></label>
-
-  <!-- TODO: replace this sentence with Jones's (M5) copy JSON when it lands (tomorrow 11:00). -->
-  <p id="gate-why">You can't submit yet. Without a baseline value, where it came from, how it was measured and a target, there is nothing to compare the pilot against.</p>
-  <button type="button" id="check" disabled>Check quality</button>
-  <button type="submit" id="submit" disabled>Submit challenge</button>
-  <div id="quality" role="status"></div>
-  <p id="status" role="status"></p>
-</form>
-
-<script src="assets/app.js"></script>
-<script>
-  const form = document.getElementById("composer");
-  const submit = document.getElementById("submit");
-  const why = document.getElementById("gate-why");
-  const status = document.getElementById("status");
-  const gate = [...form.querySelectorAll("[data-gate]")];
-  let allowed = false;
-
-  document.getElementById("preview").hidden = !App.STATIC_HOST;
-
-  function checkGate() {
-    const open = gate.every((el) => el.value.trim() !== "");
-    submit.disabled = !open || !allowed;
-    document.getElementById("check").disabled = !open || !allowed;
-    why.hidden = open;
-  }
-  form.addEventListener("input", checkGate);
-
-  App.user().then((me) => {
-    App.nav();
-    allowed = me?.role === "department" && !me.is_demo;
-    const box = document.getElementById("signin");
-    box.hidden = allowed || App.STATIC_HOST;
-    box.innerHTML = me
-      ? `Only a Department Officer's account can create a challenge. You are signed in as ${App.esc(App.ROLE[me.role])}${me.is_demo ? " (demo)" : ""}.`
-      : `<a href="login.html?next=index.html">Sign in</a> as a Department Officer to create a challenge.`;
-    checkGate();
-  });
-
-  // Advisory: the same report is stored with the challenge and read by the Programme Administrator.
-  document.getElementById("check").addEventListener("click", async () => {
-    const out = document.getElementById("quality");
-    out.textContent = "Checking…";
-    try {
-      const q = await App.api("/api/challenges", { method: "POST", body: { ...Object.fromEntries(new FormData(form)), check_only: true } });
-      out.innerHTML = `<p><b>${q.defects.length ? `${q.defects.length} thing${q.defects.length > 1 ? "s" : ""} to consider` : "No findings"}</b>
-        <span class="why">· rules${q.model ? " + model" : " only (model not run)"} · advisory: you can still submit</span></p>`
-        + (q.defects.length ? `<ul>${q.defects.map((d) => `<li><b>${App.esc(d.label)}</b>${d.span ? ` — “${App.esc(d.span)}”` : ""}<br><span class="why">${App.esc(d.why)}</span></li>`).join("")}</ul>` : "");
-    } catch (err) { out.textContent = "Couldn't check: " + err.message; }
-  });
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    submit.disabled = true;
-    status.textContent = "Saving… (running the quality check)";
-    try {
-      const out = await App.api("/api/challenges", { method: "POST", body: Object.fromEntries(new FormData(form)) });
-      location.href = "passport.html?id=" + out.record_id;
-    } catch (err) {
-      status.textContent = "Not saved: " + (err.body?.missing ? "Missing: " + err.body.missing.join(", ") : err.message);
-      checkGate();
-    }
-  });
-  checkGate();
-</script>
+<div id="app"></div>
+<noscript><p style="padding:24px;font:16px system-ui">This app needs JavaScript. The public programme figures are also published as JSON at <a href="/api/programme">/api/programme</a>.</p></noscript>
 </body>
 </html>

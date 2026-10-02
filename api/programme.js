@@ -1,7 +1,9 @@
 // GET /api/programme -> the public view of the programme, no sign-in:
-//   payments:  per department, how promptly accepted milestones were paid against the SLA
-//   dashboard: pilots by state, outcomes against baseline, adoption, routes, replications
-// Aggregates and department-level rows only: no startup names, no people. Demo data left out.
+//   departments: per department, how promptly accepted milestones were paid against the SLA
+//   dashboard:   pilots by state, outcomes against baseline, adoption, routes, replications
+//   pilots, payments: the same facts as anonymous rows (department and district, never a
+//                startup or a person), so the public pages can filter and export them
+// Demo data is left out; seeded sample pilots are flagged so a page can include or drop them.
 import { db } from "./_lib.js";
 import { route, HttpError } from "./_http.js";
 import { slaStatus } from "./_procurement.js";
@@ -19,6 +21,7 @@ export default route(async (req, res) => {
        from records r join challenges c on c.id = r.challenge_id
       where r.passport is not null and not c.is_simulated`);
   const today = new Date().toISOString().slice(0, 10);
+  const payments = [];
   const by = new Map();
   for (const r of rows) {
     const d = by.get(r.department) ?? { department: r.department, pilots: 0, accepted: 0, paid: 0, paid_on_time: 0,
@@ -27,6 +30,9 @@ export default route(async (req, res) => {
     for (const m of r.milestones ?? []) {
       const s = slaStatus(m.payment, today);
       if (s.status === "not due") continue;
+      payments.push({ department: r.department, district: r.district, sample: r.sample, status: s.status,
+        amount_inr: Number(m.amount_inr) || 0, days_overdue: s.days_overdue ?? null, days_late: s.days_late ?? null,
+        days_to_pay: m.payment.paid_on ? Math.round((Date.parse(m.payment.paid_on) - Date.parse(m.payment.packet_complete_on)) / 86400000) : null });
       d.accepted++;
       if (s.status === "paid on time" || s.status === "paid late") {
         d.paid++; d.paid_inr += Number(m.amount_inr) || 0;
@@ -46,6 +52,9 @@ export default route(async (req, res) => {
   return res.status(200).json({
     as_of: today, sample_pilots: rows.filter((r) => r.sample).length, sla_days: policy.payment_sla_days, sla_basis: policy.payment_sla_basis, departments,
     dashboard: dashboard(rows),
+    pilots: rows.map((r) => ({ department: r.department, district: r.district, state: r.passport_state, sample: r.sample,
+      met: r.validation ? r.validation === "Met the sealed criteria" : null, verdict: r.adoption?.verdict ?? null, route: r.route ?? null })),
+    payments,
   });
 });
 

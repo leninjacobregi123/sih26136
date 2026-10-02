@@ -1,0 +1,109 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": [
+    "sin1"
+  ],
+  "installCommand": "npm ci --omit=dev",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/pilots/new",
+      "destination": "/new-challenge.html"
+    },
+    {
+      "source": "/pilots/:id",
+      "destination": "/pilot.html"
+    },
+    {
+      "source": "/programme/payments",
+      "destination": "/payments.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/passport.html",
+      "has": [
+        {
+          "type": "query",
+          "key": "id",
+          "value": "(?<id>[0-9a-fA-F-]{36})"
+        }
+      ],
+      "destination": "/pilots/:id",
+      "permanent": false
+    },
+    {
+      "source": "/passport.html",
+      "destination": "/demo",
+      "permanent": false
+    },
+    {
+      "source": "/passport",
+      "destination": "/demo",
+      "permanent": false
+    },
+    {
+      "source": "/dashboard.html",
+      "destination": "/programme",
+      "permanent": false
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/programme",
+      "permanent": false
+    },
+    {
+      "source": "/ledger.html",
+      "destination": "/programme/payments",
+      "permanent": false
+    },
+    {
+      "source": "/ledger",
+      "destination": "/programme/payments",
+      "permanent": false
+    },
+    {
+      "source": "/login.html",
+      "destination": "/sign-in",
+      "permanent": false
+    },
+    {
+      "source": "/login",
+      "destination": "/sign-in",
+      "permanent": false
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=()"
+        }
+      ]
+    },
+    {
+      "source": "/assets/fonts/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
