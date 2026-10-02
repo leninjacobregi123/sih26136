@@ -6,6 +6,7 @@
 //   TEST_DATABASE_URL=postgresql://... npm run test:ui     (needs Google Chrome)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { istDate } from "../api/_clock.js"; // dates are IST, as the server's are
 import { spawn, execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { writeFileSync, mkdtempSync } from "node:fs";
@@ -196,7 +197,7 @@ test("a real pilot goes from the wizard to Replication-ready through the forms",
   await drawerSubmit(); // a payment date in the future: the server's 422 lands on the field
   await p.waitFor("!!document.querySelector('dialog[open] [data-field=\"paid_on\"] .error-text:not([hidden])')");
   assert.match(await text('dialog[open] [data-field="paid_on"] .error-text'), /future/);
-  await fill("dialog[open] form", { paid_on: new Date().toISOString().slice(0, 10) });
+  await fill("dialog[open] form", { paid_on: istDate(new Date()) });
   await drawerSubmit();
   await p.waitFor("!document.querySelector('dialog[open]')");
 
@@ -217,7 +218,7 @@ test("a real pilot goes from the wizard to Replication-ready through the forms",
   await drawerSubmit({ confirm: true });
   await p.waitFor("!!document.querySelector('[data-action=record_deployment]')");
   await action("record_deployment");
-  const ago = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const ago = (n) => istDate(new Date(Date.now() - n * 86400000));
   await fill("dialog[open] form", { order_reference: "GEMC-1", sites: "OPD", go_live: ago(60), staff_to_train: "40", annual_cost_inr: "240000" });
   await drawerSubmit();
   await p.waitFor("document.querySelector('.stepper .step.current .step-label')?.textContent === 'Deployed'");

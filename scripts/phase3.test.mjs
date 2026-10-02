@@ -3,6 +3,7 @@
 //   TEST_DATABASE_URL=postgresql://... npm test
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { istDate } from "../api/_clock.js"; // dates are IST, as the server's are
 import { randomBytes } from "node:crypto";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -228,13 +229,13 @@ test("route compiled from the passport's own facts, then approved; payments meas
     await runAction(u.department, id, "review_milestone", { milestone: m, decision: "accept" });
   }
   let b = await getBundle(id);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = istDate(new Date());
   assert.equal(b.passport.milestones[0].payment.sla_days, policy.payment_sla_days);
   assert.equal(b.ledger[0].status, "on track");
   // Paid inside the window: on time. Paid after it: late, with the days counted.
   await runAction(u.finance, id, "record_payment", { milestone: 1, outcome: "paid", paid_on: today });
   // Milestone 2's packet was completed 40 days ago (rewritten in the record), so today is 10 days past its SLA.
-  const ago = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const ago = (n) => istDate(new Date(Date.now() - n * 86400000));
   await db().query(`update records set passport = jsonb_set(jsonb_set(passport, '{milestones,1,payment,packet_complete_on}', to_jsonb($2::text)),
     '{milestones,1,payment,expected_by}', to_jsonb($3::text)) where id = $1`, [id, ago(40), ago(10)]);
   assert.equal((await getBundle(id)).ledger[1].status, "overdue");

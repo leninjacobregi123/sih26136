@@ -1,7 +1,7 @@
 // The procurement route compiler and the payment SLA ledger. Both are rule tables, not
 // models: a route is offered only when every one of its conditions holds, and each
 // condition that fails says what fact would have to change.
-import { nowIso } from "./_clock.js";
+import { nowIso, realToday } from "./_clock.js";
 import { policy } from "./_matching.js";
 
 // Each condition: the fact it reads, the test, why it fails, and what would make it pass.
@@ -87,7 +87,7 @@ export const addDays = (iso, n) => new Date(Date.parse(iso) + n * DAY).toISOStri
 const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / DAY);
 
 // Where a milestone's payment stands against the SLA, today.
-export function slaStatus(payment, today = new Date().toISOString().slice(0, 10), p = policy) {
+export function slaStatus(payment, today = realToday(), p = policy) {
   const y = payment ?? {};
   if (!y.expected_by) return { status: "not due", label: "Not due" };
   if (y.paid_on) {

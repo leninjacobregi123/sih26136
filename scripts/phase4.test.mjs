@@ -3,6 +3,7 @@
 //   TEST_DATABASE_URL=postgresql://... npm test
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { istDate } from "../api/_clock.js"; // dates are IST, as the server's are
 import { randomBytes } from "node:crypto";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -23,9 +24,9 @@ const { default: programme } = await import("../api/programme.js");
 
 const run = Date.now().toString(36) + "p4";
 const DEPT = `Urban Health ${run}`;
-const TODAY = new Date().toISOString().slice(0, 10);
-const ago = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
-const later = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+const TODAY = istDate(new Date());
+const ago = (n) => istDate(new Date(Date.now() - n * 86400000));
+const later = (n) => istDate(new Date(Date.now() + n * 86400000));
 const u = {};
 
 before(async () => {

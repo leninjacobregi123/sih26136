@@ -13,7 +13,8 @@ import { toast } from "../../ui/toast.js";
 import { alert } from "../../ui/states.js";
 import { input, textarea, select, choices, checkbox, readForm, clearErrors, showError, checkRequired, busy } from "../../ui/fields.js";
 
-const today = () => new Date().toISOString().slice(0, 10);
+// The viewer's own date (YYYY-MM-DD), for date limits and defaults; UTC would lag behind IST.
+const today = () => new Date().toLocaleDateString("en-CA");
 const addDays = (iso, n) => new Date(Date.parse(iso) + n * 86400000).toISOString().slice(0, 10);
 
 // What each action is for, in one line, shown on the rail card.

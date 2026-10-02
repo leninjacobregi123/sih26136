@@ -3,6 +3,7 @@
 //   TEST_DATABASE_URL=postgresql://... npm test
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { istDate } from "../api/_clock.js"; // dates are IST, as the server's are
 import { randomBytes } from "node:crypto";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -92,7 +93,7 @@ test("list rows carry the work queue, waiting-on and payment status", { skip }, 
   await runAction(u.startup, id, "upload_evidence", { milestone: 1, title: "x", filename: "x.txt", mime: "text/plain", data: Buffer.from("x").toString("base64") });
   await runAction(u.department, id, "review_milestone", { milestone: 1, decision: "accept" });
   // Make the payment overdue: packet completed 40 days ago.
-  const ago = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const ago = (n) => istDate(new Date(Date.now() - n * 86400000));
   await db().query(`update records set passport = jsonb_set(jsonb_set(passport, '{milestones,0,payment,packet_complete_on}', to_jsonb($2::text)),
     '{milestones,0,payment,expected_by}', to_jsonb($3::text)) where id = $1`, [id, ago(40), ago(10)]);
 
@@ -118,4 +119,13 @@ test("the feed shows recent actions; demo accounts only see samples", { skip }, 
   assert.ok(demo.every((e) => !String(e.kpi_name).includes(run)), "no real pilots in a demo account's feed");
   const demoList = (await call(u.demo)).body.passports;
   assert.ok(demoList.every((p) => p.sample), "demo accounts list sample pilots only");
+});
+
+test("today is the date in India, not UTC", async () => {
+  const { todayIso, setClock } = await import("../api/_clock.js");
+  setClock("2026-10-02T20:00:00Z"); // 01:30 on 3 October in IST
+  assert.equal(todayIso(), "2026-10-03");
+  setClock("2026-10-02T18:29:00Z"); // 23:59 on 2 October in IST
+  assert.equal(todayIso(), "2026-10-02");
+  setClock(null);
 });

@@ -3,6 +3,7 @@
 //   TEST_DATABASE_URL=postgresql://... npm test
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { istDate } from "../api/_clock.js"; // dates are IST, as the server's are
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 
@@ -51,7 +52,7 @@ async function addProfile(user, p) {
 }
 const ENVELOPE = { users: "One OPD", systems: "Timestamps", allow_write: "no", data_class: "pseudonymised",
   reversibility: "Removed in a day", cap_inr: "1500000", start_date: "2026-11-01" };
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = istDate(new Date());
 const newPilot = async () => (await createChallenge(u.department, CHALLENGE)).record_id;
 const state = async (id) => (await getBundle(id)).record.passport_state;
 const refused = (status, re) => (e) => e.status === status && (!re || re.test(e.message));

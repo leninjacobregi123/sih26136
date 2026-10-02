@@ -8,6 +8,7 @@ import { db } from "./_lib.js";
 import { route, HttpError } from "./_http.js";
 import { slaStatus } from "./_procurement.js";
 import { policy } from "./_matching.js";
+import { realToday } from "./_clock.js";
 import { STATES, LEARNING } from "./_passport.js";
 
 export default route(async (req, res) => {
@@ -20,7 +21,7 @@ export default route(async (req, res) => {
             (select max(at) from audit_events a where a.record_id = r.id) as last_activity
        from records r join challenges c on c.id = r.challenge_id
       where r.passport is not null and not c.is_simulated`);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = realToday();
   const payments = [];
   const by = new Map();
   for (const r of rows) {
