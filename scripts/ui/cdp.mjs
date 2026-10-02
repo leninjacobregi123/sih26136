@@ -9,11 +9,12 @@ import { join } from "node:path";
 const CHROME = process.env.CHROME_BIN || "google-chrome";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function launch() {
+// args: extra Chrome flags, e.g. ["--ignore-certificate-errors"] behind a TLS-inspecting proxy.
+export async function launch({ args = [] } = {}) {
   const port = 9300 + Math.floor(Math.random() * 600);
   const dir = mkdtempSync(join(tmpdir(), "ui-chrome-"));
   const proc = spawn(CHROME, ["--headless=new", "--disable-gpu", "--no-sandbox", "--no-first-run", "--no-default-browser-check",
-    "--hide-scrollbars", `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, "about:blank"], { stdio: "ignore" });
+    "--hide-scrollbars", `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, ...args, "about:blank"], { stdio: "ignore" });
   const base = `http://127.0.0.1:${port}`;
   for (let i = 0; i < 100; i++) {
     try { await (await fetch(`${base}/json/version`)).json(); break; } catch { await sleep(100); }

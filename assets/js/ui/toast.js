@@ -24,7 +24,10 @@ export function toast(message, { tone = "success", action, timeout = 6000 } = {}
     ${action && html` <a href="${action.href}">${action.label}</a>`}</div>
     <button class="toast-close" type="button" aria-label="Dismiss">${icon("x", { cls: "icon-sm" })}</button>`);
   el.querySelector(".toast-close").addEventListener("click", () => el.remove());
-  region().append(el);
+  const box = region();
+  box.append(el);
+  // At most three at once: a burst of activity shouldn't bury the page.
+  while (box.children.length > 3) box.firstElementChild.remove();
   if (timeout) setTimeout(() => el.remove(), timeout);
   return el;
 }
