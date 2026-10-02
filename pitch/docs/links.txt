@@ -1,0 +1,57 @@
+GovStart Bridge - all pages
+Local:   http://localhost:8137/
+Network: http://10.4.17.16:8137/
+
+LANDING
+  /                                 Welcome — three entry doors
+
+RUN A CHALLENGE  (7)
+  /run-a-challenge.html             Overview of the six steps
+  /step-1-define-the-problem.html   Step 1
+  /step-2-cap-the-risk.html         Step 2
+  /step-3-see-whos-eligible.html    Step 3
+  /step-4-design-the-pilot.html     Step 4
+  /step-5-run-and-validate.html     Step 5
+  /step-6-buy-it-lawfully.html      Step 6
+
+MARKETPLACE  (8)
+  /marketplace.html                 Hub - everything
+  /categories.html                  Category
+  /products.html                    Product
+  /services.html                    Service
+  /skill-purchase.html              Skill buy 24/7
+  /sellers.html                     About seller
+  /licence.html                     License
+  /become-a-seller.html             Seller onboarding
+
+BUYERS  (3)
+  /buyer-login.html                 Buyer login
+  /buyer-registration.html          Buyer registration
+  /buyer-background.html            Buyer background
+
+SKILLS & LIVELIHOOD  (6)
+  /skills.html                      Hub - all three mandates
+  /skill.html                       Skill
+  /employment.html                  Employment
+  /entrepreneurship.html            Entrepreneurship
+  /schemes.html                     Skill development schemes
+  /skill-gap.html                   Skill gap report
+
+TRAINING & RESOURCES  (7)
+  /training.html                    Training
+  /training-videos.html             Training videos
+  /resources.html                   Hub - all resources
+  /templates.html                   Templates
+  /government-laws.html             Government laws
+  /working-reports.html             Working reports
+  /apps.html                        Apps
+
+REFERENCE & SUPPORT  (8)
+  /why-its-hard.html                Why it's hard today
+  /where-it-runs.html               Maharashtra, by division
+  /rule-book.html                   Rule book
+  /judges-questions.html            Judge's questions
+  /help.html                        Help
+  /about.html                       About us
+  /grievance.html                   Grievance 24/7
+  /contact.html                     Contacts

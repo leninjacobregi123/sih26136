@@ -1,0 +1,29 @@
+# --- SIH proposal documents: NOT for a public repo ---
+*.docx
+Diagrams/
+*.pptx
+*.pdf
+
+# build intermediates
+build/_body.html
+build/*.pyc
+__pycache__/
+node_modules/
+
+# earlier single-page iterations, kept locally only
+.govstart-bridge*.bak.html
+
+# technical-approach source for the proposal — keep local
+GovStart Bridge - Technical Approach Diagrams.md
+
+# superseded single-page build
+/govstart-bridge.html
+slide-assets/technical-approach.png
+slide-assets/key-innovations.png
+slide-assets/key-highlights.png
+slide-assets/impact-and-benefits.png
+slide-assets/impact-benefits-sih.png
+
+# API keys: never commit
+API/
+.env*

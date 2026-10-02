@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="GovStart Bridge">
+  <rect x="36" y="324" width="140" height="42" rx="9" fill="#7a2214" opacity="0.40"/>
+  <rect x="336" y="324" width="140" height="42" rx="9" fill="#7a2214" opacity="0.40"/>
+  <path d="M140 324 A116 150 0 0 1 372 324" fill="none" stroke="#7a2214" stroke-width="26"/>
+  <rect x="116" y="146" width="280" height="28" rx="9" fill="#7a2214"/>
+  <rect x="234" y="136" width="44" height="56" rx="9" fill="#b8560d"/>
+</svg>

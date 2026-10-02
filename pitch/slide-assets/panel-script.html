@@ -1,0 +1,142 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<title>Panel script</title>
+<style>
+@page{size:A4;margin:16mm 15mm}
+*{box-sizing:border-box}
+body{font:11.5pt/1.55 Georgia,"Noto Serif",serif;color:#111;margin:0}
+h1{font:700 20pt/1.2 Georgia,serif;margin:0 0 2pt}
+.meta{font:9.5pt/1.4 "Noto Sans",Arial,sans-serif;color:#555;margin:0 0 14pt;
+  padding-bottom:9pt;border-bottom:1.5pt solid #111}
+h2{font:700 10pt/1.2 "Noto Sans",Arial,sans-serif;letter-spacing:.09em;
+  text-transform:uppercase;color:#7a2d12;margin:16pt 0 5pt}
+h2 .t{float:right;font-weight:400;color:#777;letter-spacing:0;text-transform:none}
+p{margin:0 0 7pt}
+.say{margin:0 0 8pt}
+.cue{font:italic 9.5pt/1.4 "Noto Sans",Arial,sans-serif;color:#666;margin:0 0 5pt}
+b{color:#000}
+.q{font:700 10.5pt/1.4 "Noto Sans",Arial,sans-serif;color:#1f3b63;margin:11pt 0 2pt}
+.q:before{content:"\201C"} .q:after{content:"\201D"}
+.a{margin:0 0 3pt;padding-left:11pt;border-left:2pt solid #dcdcdc}
+.rule{border:0;border-top:1pt solid #ccc;margin:16pt 0 0}
+.foot{font:9.5pt/1.45 "Noto Sans",Arial,sans-serif;color:#555;margin-top:9pt}
+.blank{background:#f4f4f4;padding:9pt 11pt;margin-top:12pt;
+  font:10.5pt/1.5 "Noto Sans",Arial,sans-serif}
+</style></head><body>
+
+<h1>What to say &mdash; panel review</h1>
+<p class="meta">GovStart Bridge &middot; SIH26136 &middot; technical walkthrough &middot; about six minutes</p>
+
+<h2>Open <span class="t">20 seconds</span></h2>
+<p class="say">Start with the sentence the whole design comes from: <b>a department cannot buy an
+innovation.</b> Procurement law says describe what you are buying before you buy it, and an
+innovation is the one thing you cannot describe yet.</p>
+<p class="say">So we stopped trying. We split the purchase in two. First you buy the evidence.
+Then, once that evidence has told you what the thing actually is, you buy the product.</p>
+<p class="say">There are four phases, and each one exists to answer a question the one before it
+leaves open.</p>
+
+<h2>Phase 1 &mdash; who decides what counts as success? <span class="t">30 seconds</span></h2>
+<p class="say">If you are going to award on evidence, that is the first question &mdash; and
+<b>when</b> do they decide? Because if the yardstick can move after the results are in, nobody
+trusts the award.</p>
+<p class="say">So the officer writes the outcome they need &mdash; not a product, an outcome &mdash;
+and the measures that would prove it. We hash that set with <b>SHA-256</b> and publish it with the
+challenge, before a single startup has been seen.</p>
+<p class="say">Change one number afterwards and the seal visibly breaks. The yardstick is fixed,
+in public.</p>
+
+<h2>Phase 2 &mdash; so who is allowed to compete? <span class="t">30 seconds</span></h2>
+<p class="say">Normally a turnover filter and a prior-contract requirement &mdash; which excludes
+exactly the young firm that can solve the problem.</p>
+<p class="say">The rule does let you relax that, but only if you declare it upfront and can
+justify it. Our justification is a risk cap. We score the pilot on five axes: how far damage
+spreads, what data is exposed, whether it is reversible, what it costs, and who depends on it.</p>
+<p class="say">Cap the risk in the contract and turnover stops being a proxy for anything. So we
+screen on the cap, not the balance sheet. That is the exact condition <b>Rule 173(i)</b>
+attaches.</p>
+
+<h2>Phase 3 &mdash; you have picked someone; what are you paying for? <span class="t">35 seconds</span></h2>
+<p class="say">Not a product. That is the whole point.</p>
+<p class="say">MSInS signs an <b>Evidence Contract</b>, paid milestone by milestone. The startup
+works in a sandbox on masked data, in one taluka, under DPDP. Each milestone releases money only
+when its evidence lands.</p>
+<p class="say">And here is the number a finance department cares about: if this fails, the state
+has spent the cost of <b>finding out</b> &mdash; not the cost of a rollout it then has to
+unwind.</p>
+
+<h2>Phase 4 &mdash; it worked. Can you actually buy it? <span class="t">35 seconds</span></h2>
+<p class="say">This is the question that kills most pilots.</p>
+<p class="say">The validator was named back in phase one, before any result existed. They
+recompute the seal and check the evidence against the published criteria.</p>
+<p class="say">If it passed, the platform picks the route from facts it already holds &mdash; a
+Proprietary Article Certificate, a limited tender to the winners, or the GeM catalogue. That
+becomes the deployment contract, and the department buys.</p>
+<p class="say">And if none of the three applies, it says so. It will not manufacture a route,
+because a route that does not survive audit is not a route.</p>
+
+<h2>Demo &mdash; the seal <span class="t">about 1 minute</span></h2>
+<p class="cue">Have step&nbsp;1 already open. Seal a challenge, then edit one criterion in front of them.</p>
+<p class="say">I am sealing the criteria now &hellip; and now I am going to change one target,
+after the fact.</p>
+<p class="say">That is the whole integrity story. I do not need you to trust me &mdash; the page
+tells you.</p>
+<p class="cue">If there is time, step&nbsp;2: move the risk slider.</p>
+<p class="say">Turnover is a proxy for delivery risk. Cap the risk and the proxy is redundant
+&mdash; which is what 173(i) actually asks for.</p>
+
+<h2>Close <span class="t">20 seconds</span></h2>
+<p class="say">So: fix the yardstick, open the gate lawfully, buy the proof cheaply, and have a
+way out that already exists. Four phases, and no amendment to the General Financial Rules.</p>
+<p class="say">Everything I have shown you is running today &mdash; you can open it and check.
+Four things are scoped but not built, and they are on the slide: DigiLocker verification,
+expert-panel scoring, the sanction builder, and Treasury&ndash;PFMS release.</p>
+
+<hr class="rule">
+<h2>If they ask</h2>
+
+<p class="q">Is this really built, or mockups?</p>
+<p class="a">Built. Forty-one pages, and it runs offline with no server &mdash; I can open it with
+the wifi off.</p>
+
+<p class="q">What is the tech stack?</p>
+<p class="a">Deliberately plain: static HTML, CSS and vanilla JavaScript. No framework, no
+backend. A government prototype should demo on a laptop with no network, and a department&rsquo;s
+IT should be able to read it end to end.</p>
+
+<p class="q">Where is the data from?</p>
+<p class="a">Simulated demonstration data, labelled as such on every page. No server, no accounts,
+nothing collected.</p>
+
+<p class="q">Is SHA-256 not overkill here?</p>
+<p class="a">It is the one place where a person could quietly change a number after results came
+in. Everything else is process; this is the only part that has to be tamper-evident.</p>
+
+<p class="q">Why not just use GeM?</p>
+<p class="a">GeM is one of our three exits. The gap is upstream &mdash; GeM cannot help you buy
+something you cannot specify yet.</p>
+
+<p class="q">Does this need a change in the law?</p>
+<p class="a">No. One state Government Resolution unlocks Tier 1, and Tiers 2 and 3 need nothing at
+all.</p>
+
+<p class="q">What is not built?</p>
+<p class="a">Four things: DigiLocker verification, expert-panel scoring, the sanction builder, and
+Treasury&ndash;PFMS release. Scoped, not built.</p>
+
+<p class="q">Who validates, and what stops it being gamed?</p>
+<p class="a">The validator is named at step one, before any result exists, and they recompute the
+seal at step five. That ordering removes both criteria drift and validator shopping.</p>
+
+<p class="q">What happens if the pilot fails?</p>
+<p class="a">The state has paid for the evidence and nothing more. There is no product to unwind,
+no hardware to strip out.</p>
+
+<p class="q">Something you do not know</p>
+<p class="a">I have not tested that. &nbsp;/&nbsp; That is not built yet.</p>
+
+<div class="blank"><b>If you blank:</b> say the first sentence again &mdash; <i>&ldquo;A department
+cannot buy an innovation. It can buy the evidence.&rdquo;</i> &mdash; take a breath, and pick up at
+whichever phase you were on. Every phase connects back to it.</div>
+
+<p class="foot">leninjacobregi.me/govstart-bridge/</p>
+</body></html>
